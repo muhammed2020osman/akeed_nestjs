@@ -156,14 +156,22 @@ export class MessagesGateway
   }
 
   private extractToken(client: Socket): string | null {
+    // 1. Check Authorization header
     const authHeader = client.handshake.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       return authHeader.substring(7);
     }
 
-    const token = client.handshake.auth?.token;
-    if (token) {
-      return token;
+    // 2. Check auth object (standard Socket.IO v4)
+    const authToken = client.handshake.auth?.token;
+    if (authToken) {
+      return authToken;
+    }
+
+    // 3. Check query parameters (fallback for some clients/polling)
+    const queryToken = client.handshake.query?.token;
+    if (queryToken && typeof queryToken === 'string') {
+      return queryToken;
     }
 
     return null;
