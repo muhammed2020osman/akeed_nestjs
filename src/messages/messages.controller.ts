@@ -1,0 +1,256 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { MessagesService } from './messages.service';
+import { CreateMessageDto } from './dto/create-message.dto';
+import { UpdateMessageDto } from './dto/update-message.dto';
+import { MessageQueryDto } from './dto/message-query.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+
+@Controller('messages')
+@UseGuards(JwtAuthGuard)
+export class MessagesController {
+  constructor(private readonly messagesService: MessagesService) {}
+
+  @Get()
+  async index(
+    @Query() query: MessageQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.messagesService.findAll(
+      user.userId,
+      user.companyId || user.company_id,
+      query,
+    );
+    return {
+      success: true,
+      message: 'Messages retrieved successfully',
+      payload: result,
+    };
+  }
+
+  @Get('threads')
+  async getThreads(
+    @Query() query: MessageQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.messagesService.getThreads(
+      user.userId,
+      user.companyId || user.company_id,
+      query,
+    );
+    return {
+      success: true,
+      message: 'Threads retrieved successfully',
+      payload: result,
+    };
+  }
+
+  @Get('starred')
+  async getStarredMessages(
+    @Query() query: MessageQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    // TODO: Implement starred messages
+    return {
+      success: true,
+      message: 'Starred messages retrieved successfully',
+      payload: {
+        data: [],
+        meta: {
+          current_page: 1,
+          per_page: query.perPage || 20,
+          total: 0,
+          last_page: 1,
+          from: 0,
+          to: 0,
+        },
+        links: {
+          first: null,
+          last: null,
+          prev: null,
+          next: null,
+        },
+      },
+    };
+  }
+
+  @Get('starred/count')
+  async getStarredCount(@CurrentUser() user: any) {
+    // TODO: Implement starred count
+    return {
+      success: true,
+      message: 'Starred messages count retrieved successfully',
+      payload: { count: 0 },
+    };
+  }
+
+  @Get(':id')
+  async show(@Param('id') id: string, @CurrentUser() user: any) {
+    const message = await this.messagesService.findOne(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Message retrieved successfully',
+      payload: message,
+    };
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async store(
+    @Body() createMessageDto: CreateMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const message = await this.messagesService.create(
+      createMessageDto,
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Message created successfully',
+      payload: message,
+    };
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() updateMessageDto: UpdateMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const message = await this.messagesService.update(
+      parseInt(id),
+      updateMessageDto,
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Message updated successfully',
+      payload: message,
+    };
+  }
+
+  @Patch(':id/topic')
+  async updateTopic(
+    @Param('id') id: string,
+    @Body() updateMessageDto: UpdateMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const message = await this.messagesService.update(
+      parseInt(id),
+      updateMessageDto,
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Message topic updated successfully',
+      payload: message,
+    };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async destroy(@Param('id') id: string, @CurrentUser() user: any) {
+    await this.messagesService.remove(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Message deleted successfully',
+      payload: null,
+    };
+  }
+
+  @Get(':id/thread')
+  async thread(@Param('id') id: string, @CurrentUser() user: any) {
+    const result = await this.messagesService.getReplies(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Thread messages retrieved successfully',
+      payload: {
+        parent: result.message,
+        replies: result.replies,
+      },
+    };
+  }
+
+  @Get(':id/replies')
+  async getReplies(@Param('id') id: string, @CurrentUser() user: any) {
+    const result = await this.messagesService.getReplies(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
+    return {
+      success: true,
+      message: 'Replies retrieved successfully',
+      payload: {
+        message: result.message,
+        replies: result.replies,
+        replies_count: result.replies_count,
+      },
+    };
+  }
+
+  @Post(':id/favorite')
+  async toggleFavorite(@Param('id') id: string, @CurrentUser() user: any) {
+    // TODO: Implement favorite toggle
+    return {
+      success: true,
+      message: 'Message added to favorites',
+      payload: {
+        is_starred: true,
+        message: 'Message added to favorites',
+      },
+    };
+  }
+
+  @Get(':id/starred')
+  async checkStarred(@Param('id') id: string, @CurrentUser() user: any) {
+    // TODO: Implement check starred
+    return {
+      success: true,
+      message: 'Starred status retrieved successfully',
+      payload: { is_starred: false },
+    };
+  }
+
+  @Get(':id/ticket')
+  async getTicketByMessage(@Param('id') id: string, @CurrentUser() user: any) {
+    // TODO: Implement ticket by message
+    return {
+      success: true,
+      message: 'No ticket found for this message',
+      payload: {
+        ticket_id: null,
+        ticket: null,
+      },
+    };
+  }
+}
+

@@ -1,0 +1,252 @@
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  MessageBody,
+  ConnectedSocket,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { Logger, UseGuards, Inject, forwardRef, Optional } from '@nestjs/common';
+import { MessagesService } from './messages.service';
+import { ChannelsService } from '../channels/channels.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
+import * as crypto from 'crypto';
+
+@WebSocketGateway({
+  cors: {
+    origin: '*',
+    credentials: true,
+  },
+  namespace: '/',
+})
+export class MessagesGateway
+  implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer()
+  server: Server;
+
+  private readonly logger = new Logger(MessagesGateway.name);
+  private connectedUsers = new Map<string, { userId: number; companyId: number }>();
+
+  constructor(
+    @Inject(forwardRef(() => ChannelsService))
+    private channelsService: ChannelsService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+    private dataSource: DataSource,
+    @Optional()
+    @Inject(forwardRef(() => MessagesService))
+    private messagesService?: MessagesService,
+  ) { }
+
+  async handleConnection(client: Socket) {
+    try {
+      this.logger.log(`🔌 New connection attempt from client ${client.id}`);
+      this.logger.log(`Headers: ${JSON.stringify(client.handshake.headers)}`);
+      this.logger.log(`Auth: ${JSON.stringify(client.handshake.auth)}`);
+
+      const token = this.extractToken(client);
+      if (!token) {
+        this.logger.warn(`❌ Client ${client.id} disconnected: No token provided`);
+        client.disconnect();
+        return;
+      }
+
+      this.logger.log(`🔑 Token extracted for client ${client.id}: ${token.substring(0, 20)}...`);
+
+      const payload = await this.verifyToken(token);
+      if (!payload) {
+        this.logger.warn(`❌ Client ${client.id} disconnected: Invalid token`);
+        client.disconnect();
+        return;
+      }
+
+      const userId = payload.sub || payload.userId || payload.id;
+      const companyId = payload.companyId || payload.company_id;
+
+      this.connectedUsers.set(client.id, { userId, companyId });
+      client.data.userId = userId;
+      client.data.companyId = companyId;
+
+      this.logger.log(`✅ Client ${client.id} connected successfully (User: ${userId}, Company: ${companyId})`);
+    } catch (error) {
+      this.logger.error(`❌ Connection error for client ${client.id}:`, error.message);
+      this.logger.error(error.stack);
+      client.disconnect();
+    }
+  }
+
+  handleDisconnect(client: Socket) {
+    this.connectedUsers.delete(client.id);
+    this.logger.log(`Client ${client.id} disconnected`);
+  }
+
+  @SubscribeMessage('subscribe:channel')
+  async handleSubscribeChannel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { channelId: number },
+  ) {
+    try {
+      const { userId, companyId } = this.connectedUsers.get(client.id) || {};
+      if (!userId || !companyId) {
+        return { error: 'Unauthorized' };
+      }
+
+      // Check channel access
+      await this.channelsService.checkChannelAccess(
+        data.channelId,
+        userId,
+        companyId,
+      );
+
+      const channelName = `private-channel.${data.channelId}`;
+      client.join(channelName);
+
+      this.logger.log(
+        `User ${userId} subscribed to channel ${data.channelId}`,
+      );
+
+      return { success: true, channel: channelName };
+    } catch (error) {
+      this.logger.error(`Subscribe error:`, error);
+      return { error: error.message };
+    }
+  }
+
+  @SubscribeMessage('unsubscribe:channel')
+  async handleUnsubscribeChannel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { channelId: number },
+  ) {
+    const channelName = `private-channel.${data.channelId}`;
+    client.leave(channelName);
+    this.logger.log(`Client ${client.id} unsubscribed from channel ${data.channelId}`);
+    return { success: true };
+  }
+
+  // Broadcast message sent event
+  broadcastMessageSent(message: any) {
+    const channelName = `private-channel.${message.channelId}`;
+    this.server.to(channelName).emit('message.sent', {
+      message: this.serializeMessage(message),
+    });
+    this.logger.log(`Broadcasted message.sent to channel ${message.channelId}`);
+  }
+
+  // Broadcast message updated event
+  broadcastMessageUpdated(message: any) {
+    const channelName = `private-channel.${message.channelId}`;
+    this.server.to(channelName).emit('message.updated', {
+      message: this.serializeMessage(message),
+    });
+    this.logger.log(`Broadcasted message.updated to channel ${message.channelId}`);
+  }
+
+  // Broadcast message deleted event
+  broadcastMessageDeleted(messageId: number, channelId: number) {
+    const channelName = `private-channel.${channelId}`;
+    this.server.to(channelName).emit('message.deleted', {
+      message_id: messageId,
+      channel_id: channelId,
+    });
+    this.logger.log(`Broadcasted message.deleted to channel ${channelId}`);
+  }
+
+  private extractToken(client: Socket): string | null {
+    const authHeader = client.handshake.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+
+    const token = client.handshake.auth?.token;
+    if (token) {
+      return token;
+    }
+
+    return null;
+  }
+
+  private async verifyToken(token: string): Promise<any> {
+    // Check if it's a Sanctum token
+    if (token.includes('|')) {
+      const [id, tokenVal] = token.split('|');
+      if (!id || !tokenVal) return null;
+
+      const hashedToken = crypto.createHash('sha256').update(tokenVal).digest('hex');
+
+      const tokens = await this.dataSource.query(
+        'SELECT * FROM personal_access_tokens WHERE id = ? AND token = ? LIMIT 1',
+        [id, hashedToken],
+      );
+
+      if (!tokens || tokens.length === 0) {
+        return null;
+      }
+
+      const tokenRecord = tokens[0];
+
+      const users = await this.dataSource.query(
+        'SELECT * FROM users WHERE id = ? LIMIT 1',
+        [tokenRecord.tokenable_id],
+      );
+
+      if (!users || users.length === 0) {
+        return null;
+      }
+
+      const user = users[0];
+      return {
+        userId: user.id,
+        companyId: user.company_id,
+        email: user.email,
+        ...user,
+      };
+    }
+
+    // Default JWT Verification
+    try {
+      const secret = this.configService.get<string>('jwt.secret');
+      return this.jwtService.verify(token, { secret });
+    } catch (error) {
+      this.logger.error('Token verification failed:', error);
+      return null;
+    }
+  }
+
+  private serializeMessage(message: any): any {
+    return {
+      id: message.id,
+      content: message.content,
+      channel_id: message.channelId,
+      user_id: message.userId,
+      company_id: message.companyId,
+      reply_to_id: message.replyToId,
+      thread_parent_id: message.threadParentId,
+      attachment_url: message.attachmentUrl,
+      attachment_type: message.attachmentType,
+      attachment_name: message.attachmentName,
+      mentions: message.mentions || [],
+      edited_at: message.editedAt,
+      created_at: message.createdAt,
+      updated_at: message.updatedAt,
+      user: message.user
+        ? {
+          id: message.user.id,
+          name: message.user.name,
+          email: message.user.email,
+          profile_image_url: message.user.profileImageUrl,
+        }
+        : null,
+      channel: message.channel
+        ? {
+          id: message.channel.id,
+          name: message.channel.name,
+        }
+        : null,
+    };
+  }
+}
+
