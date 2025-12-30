@@ -10,7 +10,11 @@ export class NotificationsController {
     @UseGuards(SanctumGuard)
     @HttpCode(HttpStatus.OK)
     async subscribe(@Request() req, @Body() body: { fcm_token: string, device_type: string, device_id?: string }) {
+        console.log(`[NotificationsController] Received subscribe request for user ${req.user.id}`);
+        console.log(`[NotificationsController] Payload:`, body);
+
         await this.notificationsService.subscribeToPush(req.user.id, body);
+
         return {
             success: true,
             message: 'Subscribed to push notifications successfully',

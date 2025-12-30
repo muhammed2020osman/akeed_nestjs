@@ -16,16 +16,20 @@ export class SanctumGuard implements CanActivate {
         const authHeader = request.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.warn('[SanctumGuard] Missing or invalid Authorization header');
             throw new UnauthorizedException('Missing or invalid Authorization header');
         }
 
         const token = authHeader.substring(7);
+        console.log(`[SanctumGuard] Checking token: ${token.substring(0, 10)}...`);
         const user = await this.verifySanctumToken(token);
 
         if (!user) {
+            console.error('[SanctumGuard] Invalid Sanctum token');
             throw new UnauthorizedException('Invalid Sanctum token');
         }
 
+        console.log(`[SanctumGuard] User ${user.userId} verified`);
         request.user = user;
         return true;
     }
