@@ -46,16 +46,25 @@ export class MessagesGateway
     try {
       this.logger.log(`🔌 New connection attempt from client ${client.id}`);
       this.logger.log(`Headers: ${JSON.stringify(client.handshake.headers)}`);
-      this.logger.log(`Auth: ${JSON.stringify(client.handshake.auth)}`);
+      this.logger.log(`Auth Object: ${JSON.stringify(client.handshake.auth)}`);
+      this.logger.log(`Query Params: ${JSON.stringify(client.handshake.query)}`);
 
-      const token = this.extractToken(client);
+      let token = this.extractToken(client);
+
+      // Fallback: Try decoding URI component if token seems encoded/broken
+      if (!token && client.handshake.query?.token) {
+        try {
+          token = decodeURIComponent(client.handshake.query.token as string);
+        } catch (e) { }
+      }
+
       if (!token) {
-        this.logger.warn(`❌ Client ${client.id} disconnected: No token provided`);
+        this.logger.warn(`❌ Client ${client.id} disconnected: No token provided in Headers, Auth, or Query`);
         client.disconnect();
         return;
       }
 
-      this.logger.log(`🔑 Token extracted for client ${client.id}: ${token.substring(0, 20)}...`);
+      this.logger.log(`🔑 Token extracted: ${token.substring(0, 15)}...`);
 
       const payload = await this.verifyToken(token);
       if (!payload) {
