@@ -159,15 +159,20 @@ export class MessagesGateway
         Array.from(this.connectedUsers.values()).map((u) => u.userId),
       );
 
+      this.logger.log(`🔔 Channel ${message.channelId} has ${channelMembers.length} members. Online users: ${Array.from(onlineUserIds).join(',')}`);
+
       for (const member of channelMembers) {
         const memberId = member.user_id;
 
         // 1. Skip sender
-        if (memberId === senderId) continue;
+        if (memberId === senderId) {
+          this.logger.log(`⏭️ Skipping sender ${memberId}`);
+          continue;
+        }
 
         // 2. Check if online
         if (!onlineUserIds.has(memberId)) {
-          // User is offline or not connected to socket -> Send Push Notification
+          this.logger.log(`👤 User ${memberId} is OFFLINE. Proceeding with FCM...`);
           const senderName = message.user?.name || 'User';
           const channelNameString = message.channel?.name || 'Channel';
           const notificationTitle = channelNameString; // Title should be channel name for channel messages
