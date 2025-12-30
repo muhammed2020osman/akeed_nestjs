@@ -148,21 +148,23 @@ export class MessagesGateway
 
     // Hybrid Notification: Send FCM to offline users
     try {
+      const channelId = Number(message.channelId);
+      const senderId = Number(message.userId);
+
       const channelMembers = await this.dataSource.query(
         'SELECT user_id FROM channel_members WHERE channel_id = ?',
-        [message.channelId],
+        [channelId],
       );
 
-      const senderId = message.userId;
       // create set of online user IDs for O(1) lookup
       const onlineUserIds = new Set(
-        Array.from(this.connectedUsers.values()).map((u) => u.userId),
+        Array.from(this.connectedUsers.values()).map((u) => Number(u.userId)),
       );
 
-      this.logger.log(`🔔 Channel ${message.channelId} has ${channelMembers.length} members. Online users: ${Array.from(onlineUserIds).join(',')}`);
+      this.logger.log(`🔔 Channel ${channelId} Members Found: ${channelMembers.length}. Online: [${Array.from(onlineUserIds).join(',')}]`);
 
       for (const member of channelMembers) {
-        const memberId = member.user_id;
+        const memberId = Number(member.user_id);
 
         // 1. Skip sender
         if (memberId === senderId) {
