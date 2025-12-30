@@ -7,6 +7,7 @@ import { MessagesService } from './messages.service';
 import { MessagesGateway } from './messages.gateway';
 import { Message } from './entities/message.entity';
 import { ChannelsModule } from '../channels/channels.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -14,10 +15,11 @@ import { ChannelsModule } from '../channels/channels.module';
     forwardRef(() => ChannelsModule),
     JwtModule,
     ConfigModule,
+    NotificationsModule,
   ],
   controllers: [MessagesController],
   providers: [MessagesService, MessagesGateway],
   exports: [MessagesService, MessagesGateway],
 })
-export class MessagesModule {}
+export class MessagesModule { }
 

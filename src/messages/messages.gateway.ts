@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards, Inject, forwardRef, Optional } from '@nestjs/common';
 import { MessagesService } from './messages.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ChannelsService } from '../channels/channels.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -37,6 +38,7 @@ export class MessagesGateway
     private jwtService: JwtService,
     private configService: ConfigService,
     private dataSource: DataSource,
+    private notificationsService: NotificationsService,
     @Optional()
     @Inject(forwardRef(() => MessagesService))
     private messagesService?: MessagesService,
@@ -137,12 +139,65 @@ export class MessagesGateway
   }
 
   // Broadcast message sent event
-  broadcastMessageSent(message: any) {
+  async broadcastMessageSent(message: any) {
     const channelName = `private-channel.${message.channelId}`;
     this.server.to(channelName).emit('message.sent', {
       message: this.serializeMessage(message),
     });
     this.logger.log(`Broadcasted message.sent to channel ${message.channelId}`);
+
+    // Hybrid Notification: Send FCM to offline users
+    try {
+      const channelMembers = await this.dataSource.query(
+        'SELECT user_id FROM channel_members WHERE channel_id = ?',
+        [message.channelId],
+      );
+
+      const senderId = message.userId;
+      // create set of online user IDs for O(1) lookup
+      const onlineUserIds = new Set(
+        Array.from(this.connectedUsers.values()).map((u) => u.userId),
+      );
+
+      for (const member of channelMembers) {
+        const memberId = member.user_id;
+
+        // 1. Skip sender
+        if (memberId === senderId) continue;
+
+        // 2. Check if online
+        if (!onlineUserIds.has(memberId)) {
+          // User is offline or not connected to socket -> Send Push Notification
+          const senderName = message.user?.name || 'User';
+          const notificationTitle = `New message from ${senderName}`;
+          let notificationBody = message.content || 'Sent an attachment';
+
+          if (message.attachmentUrl) {
+            notificationBody = `📷 ${message.attachmentType || 'Attachment'}: ${notificationBody}`;
+          }
+
+          if (notificationBody.length > 100) {
+            notificationBody = notificationBody.substring(0, 100) + '...';
+          }
+
+          this.logger.log(`User ${memberId} is offline. Sending FCM notification...`);
+
+          await this.notificationsService.sendNotificationToUser(
+            memberId,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'chat',
+              channelId: String(message.channelId),
+              messageId: String(message.id),
+              companyId: String(message.companyId),
+            },
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error sending FCM notifications:', error);
+    }
   }
 
   // Broadcast message updated event
