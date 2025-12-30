@@ -1,0 +1,45 @@
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDatabaseModule dependencies initialized[39m[38;5;3m +40ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPassportModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigHostModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mJwtModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +2ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mJwtModule dependencies initialized[39m[38;5;3m +220ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmCoreModule dependencies initialized[39m[38;5;3m +129ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mChannelsModule dependencies initialized[39m[38;5;3m +3ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mMessagesModule dependencies initialized[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[WebSocketsController] [39m[32mMessagesGateway subscribed to the "subscribe:channel" message[39m[38;5;3m +17ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[WebSocketsController] [39m[32mMessagesGateway subscribed to the "unsubscribe:channel" message[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAppController {/api}:[39m[38;5;3m +3ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api, GET} route[39m[38;5;3m +3ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAuthController {/api/auth}:[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/login, POST} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/register, POST} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mMessagesController {/api/messages}:[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/threads, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/starred, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/starred/count, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages, POST} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id, PUT} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id/topic, PATCH} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id, DELETE} route[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id/thread, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id/replies, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id/favorite, POST} route[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id/starred, GET} route[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/messages/:id/ticket, GET} route[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mChannelsController {/api/channels}:[39m[38;5;3m +1ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/channels/:id/messages, GET} route[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/channels/:id/search, GET} route[39m[38;5;3m +0ms[39m
+2025-12-30 05:39:03 +00:00: [32m[Nest] 2766559  - [39m12/30/2025, 5:39:03 AM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +10ms[39m
+2025-12-30 05:39:03 +00:00: Application is running on: http://localhost:3000
