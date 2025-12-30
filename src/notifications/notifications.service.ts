@@ -204,4 +204,65 @@ export class NotificationsService {
             return '';
         }
     }
+
+    /**
+     * Subscribe a user to push notifications
+     */
+    public async subscribeToPush(userId: number, subscriptionData: { fcm_token: string, device_type: string, device_id?: string }): Promise<void> {
+        try {
+            // 1. Check if subscription already exists
+            const existing = await this.dataSource.query(
+                'SELECT id FROM push_subscriptions WHERE user_id = ? AND fcm_token = ? LIMIT 1',
+                [userId, subscriptionData.fcm_token]
+            );
+
+            if (existing && existing.length > 0) {
+                // Update timestamp
+                await this.dataSource.query(
+                    'UPDATE push_subscriptions SET updated_at = ?, device_type = ?, device_id = ? WHERE id = ?',
+                    [new Date(), subscriptionData.device_type, subscriptionData.device_id || null, existing[0].id]
+                );
+            } else {
+                // Create new subscription
+                await this.dataSource.query(
+                    'INSERT INTO push_subscriptions (user_id, fcm_token, device_type, device_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+                    [userId, subscriptionData.fcm_token, subscriptionData.device_type, subscriptionData.device_id || null, new Date(), new Date()]
+                );
+            }
+
+            // 2. Also update users table for backward compatibility
+            await this.dataSource.query(
+                'UPDATE users SET fcm_token = ? WHERE id = ?',
+                [subscriptionData.fcm_token, userId]
+            );
+
+            this.logger.log(`📱 User ${userId} subscribed to push notifications successfully`);
+        } catch (error) {
+            this.logger.error(`❌ Failed to subscribe user ${userId} to push:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Unsubscribe a user from push notifications
+     */
+    public async unsubscribeFromPush(userId: number, fcmToken: string): Promise<void> {
+        try {
+            await this.dataSource.query(
+                'DELETE FROM push_subscriptions WHERE user_id = ? AND fcm_token = ?',
+                [userId, fcmToken]
+            );
+
+            // Clear from users table if it matches
+            await this.dataSource.query(
+                'UPDATE users SET fcm_token = NULL WHERE id = ? AND fcm_token = ?',
+                [userId, fcmToken]
+            );
+
+            this.logger.log(`📴 User ${userId} unsubscribed from push notifications`);
+        } catch (error) {
+            this.logger.error(`❌ Failed to unsubscribe user ${userId} from push:`, error);
+            throw error;
+        }
+    }
 }
