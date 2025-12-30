@@ -181,14 +181,27 @@ export class MessagesGateway
             notificationBody = notificationBody.substring(0, 100) + '...';
           }
 
-          this.logger.log(`User ${memberId} is offline. Sending FCM notification...`);
+          this.logger.log(`User ${memberId} is offline. Recording notification and sending FCM...`);
 
+          // 3. Record in database (match Laravel behavior)
+          const dbNotificationId = await this.notificationsService.recordDatabaseNotification(memberId, {
+            message_id: message.id,
+            channel_id: message.channelId,
+            channel_name: channelNameString,
+            sender_id: message.userId,
+            sender_name: senderName,
+            sender_avatar: message.user?.profileImageUrl || null,
+            content: message.content || 'Sent an attachment',
+          });
+
+          // 4. Send FCM
           await this.notificationsService.sendNotificationToUser(
             memberId,
             notificationTitle,
             notificationBody,
             {
               type: 'channel_message',
+              notification_id: dbNotificationId, // Pass the DB notification ID
               channel_id: String(message.channelId),
               channel_name: channelNameString,
               user_name: senderName,
