@@ -4,3 +4,4 @@ dist
 /credentials
 # .env
 package-lock.json
+/logs
