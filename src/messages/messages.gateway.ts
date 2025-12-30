@@ -169,11 +169,12 @@ export class MessagesGateway
         if (!onlineUserIds.has(memberId)) {
           // User is offline or not connected to socket -> Send Push Notification
           const senderName = message.user?.name || 'User';
-          const notificationTitle = `New message from ${senderName}`;
-          let notificationBody = message.content || 'Sent an attachment';
+          const channelNameString = message.channel?.name || 'Channel';
+          const notificationTitle = channelNameString; // Title should be channel name for channel messages
+          let notificationBody = `${senderName}: ${message.content || 'Sent an attachment'}`;
 
           if (message.attachmentUrl) {
-            notificationBody = `📷 ${message.attachmentType || 'Attachment'}: ${notificationBody}`;
+            notificationBody = `${senderName}: 📷 ${message.attachmentType || 'Attachment'}`;
           }
 
           if (notificationBody.length > 100) {
@@ -187,10 +188,15 @@ export class MessagesGateway
             notificationTitle,
             notificationBody,
             {
-              type: 'chat',
-              channelId: String(message.channelId),
-              messageId: String(message.id),
-              companyId: String(message.companyId),
+              type: 'channel_message',
+              channel_id: String(message.channelId),
+              channel_name: channelNameString,
+              user_name: senderName,
+              user_avatar: message.user?.profileImageUrl || '',
+              message_id: String(message.id),
+              company_id: String(message.companyId),
+              notification_tag: `channel_${message.channelId}`,
+              content: message.content || '',
             },
           );
         }

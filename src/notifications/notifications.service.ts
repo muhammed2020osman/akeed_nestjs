@@ -52,50 +52,64 @@ export class NotificationsService {
         data: Record<string, string> = {},
     ): Promise<void> {
         try {
-            // 1. Fetch user's FCM token from database
-            const user = await this.dataSource.query(
-                'SELECT fcm_token FROM users WHERE id = ? LIMIT 1',
+            // 1. Fetch user's FCM tokens from push_subscriptions table
+            const subscriptions = await this.dataSource.query(
+                'SELECT fcm_token FROM push_subscriptions WHERE user_id = ? AND fcm_token IS NOT NULL',
                 [userId],
             );
 
-            if (!user || user.length === 0 || !user[0].fcm_token) {
-                this.logger.warn(`⚠️ No FCM token found for user ${userId}`);
+            // Also check legacy users table for backward compatibility during migration
+            const user = await this.dataSource.query(
+                'SELECT fcm_token FROM users WHERE id = ? AND fcm_token IS NOT NULL LIMIT 1',
+                [userId],
+            );
+
+            const tokens: string[] = subscriptions.map((s: any) => s.fcm_token);
+            if (user && user.length > 0 && user[0].fcm_token) {
+                if (!tokens.includes(user[0].fcm_token)) {
+                    tokens.push(user[0].fcm_token);
+                }
+            }
+
+            if (tokens.length === 0) {
+                this.logger.warn(`⚠️ No FCM tokens found for user ${userId}`);
                 return;
             }
 
-            const fcmToken = user[0].fcm_token;
-
-            // 2. Construct payloads
-            const message: admin.messaging.Message = {
-                token: fcmToken,
-                notification: {
-                    title,
-                    body,
-                },
-                data: {
-                    ...data,
-                    click_action: 'FLUTTER_NOTIFICATION_CLICK', // Standard for Flutter
-                },
-                android: {
-                    priority: 'high',
+            // 2. Send to all tokens
+            for (const fcmToken of tokens) {
+                // Construct payloads
+                const message: admin.messaging.Message = {
+                    token: fcmToken,
                     notification: {
-                        sound: 'default',
-                        channelId: 'high_importance_channel', // Match Android channel ID
+                        title,
+                        body,
                     },
-                },
-                apns: {
-                    payload: {
-                        aps: {
+                    data: {
+                        ...data,
+                        click_action: 'FLUTTER_NOTIFICATION_CLICK', // Standard for Flutter
+                    },
+                    android: {
+                        priority: 'high',
+                        notification: {
                             sound: 'default',
-                            badge: 1, // Optional: handle badges if needed
+                            channelId: 'messages_work', // Match Android channel ID
                         },
                     },
-                },
-            };
+                    apns: {
+                        payload: {
+                            aps: {
+                                sound: 'default',
+                                badge: 1, // Optional: handle badges if needed
+                            },
+                        },
+                    },
+                };
 
-            // 3. Send via Firebase
-            await admin.messaging().send(message);
-            this.logger.log(`📲 Notification sent to user ${userId} via FCM`);
+                // Send via Firebase
+                await admin.messaging().send(message);
+            }
+            this.logger.log(`📲 Notification sent to user ${userId} via FCM (${tokens.length} devices)`);
         } catch (error) {
             this.logger.error(`❌ Error sending notification to user ${userId}:`, error);
         }
