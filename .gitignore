@@ -3,5 +3,5 @@ node_modules
 dist
 /credentials
 # .env
-package-lock.json
+# package-lock.json
 /logs
