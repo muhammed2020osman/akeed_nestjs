@@ -152,4 +152,44 @@ export class DirectMessagesService {
             where: { toUserId: userId, companyId, isRead: false },
         });
     }
+
+    async getConversations(
+        userId: number,
+        companyId: number,
+    ): Promise<any[]> {
+        // We need to find unique users that the current user has exchanged messages with.
+        // We'll use a raw query or a complex query builder to get one latest message per user.
+
+        // Let's use QueryBuilder for better performance and grouping
+        const query = this.directMessageRepository
+            .createQueryBuilder('dm')
+            .leftJoinAndSelect('dm.fromUser', 'fromUser')
+            .leftJoinAndSelect('dm.toUser', 'toUser')
+            .where('dm.companyId = :companyId', { companyId })
+            .andWhere('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
+            .orderBy('dm.createdAt', 'DESC');
+
+        const allMessages = await query.getMany();
+
+        const conversationsMap = new Map<number, any>();
+
+        for (const msg of allMessages) {
+            const otherUser = msg.fromUserId === userId ? msg.toUser : msg.fromUser;
+            if (!otherUser) continue;
+
+            if (!conversationsMap.has(otherUser.id)) {
+                conversationsMap.set(otherUser.id, {
+                    user: otherUser,
+                    last_message: msg,
+                    unread_count: 0
+                });
+            }
+
+            if (!msg.isRead && msg.toUserId === userId) {
+                conversationsMap.get(otherUser.id).unread_count++;
+            }
+        }
+
+        return Array.from(conversationsMap.values());
+    }
 }

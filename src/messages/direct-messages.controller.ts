@@ -73,6 +73,14 @@ export class DirectMessagesController {
         return { payload: count, status: true, code: 200 };
     }
 
+    @Get('conversations')
+    async getConversations(@Req() req) {
+        return this.directMessagesService.getConversations(
+            req.user.id,
+            req.user.companyId,
+        );
+    }
+
     @Delete(':id')
     async remove(@Req() req, @Param('id') id: string) {
         await this.directMessagesService.remove(+id, req.user.id);

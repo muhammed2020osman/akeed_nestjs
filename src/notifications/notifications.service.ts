@@ -131,40 +131,52 @@ export class NotificationsService {
      */
     public async recordDatabaseNotification(userId: number, notificationData: any): Promise<string> {
         try {
-            // 1. Check for existing unread notification for this channel to group them (same logic as Laravel Controller)
+            // 1. Grouping Logic
             const channelId = notificationData.channel_id;
+            const senderId = notificationData.sender_id;
+            const isDM = notificationData.channel_type === 'direct_message';
 
-            if (channelId) {
-                const existing = await this.dataSource.query(
+            // Check for existing unread notification to group them
+            let existing: any[] = [];
+
+            if (isDM && senderId) {
+                // Group DMs by sender
+                existing = await this.dataSource.query(
+                    'SELECT id, data FROM notifications WHERE notifiable_id = ? AND notifiable_type = ? AND type = ? AND read_at IS NULL AND json_unquote(json_extract(data, "$.sender_id")) = ? AND json_unquote(json_extract(data, "$.channel_type")) = "direct_message" LIMIT 1',
+                    [userId, 'App\\Models\\User', 'App\\Notifications\\NewMessageNotification', String(senderId)]
+                );
+            } else if (channelId) {
+                // Group Channel messages by channel
+                existing = await this.dataSource.query(
                     'SELECT id, data FROM notifications WHERE notifiable_id = ? AND notifiable_type = ? AND type = ? AND read_at IS NULL AND json_unquote(json_extract(data, "$.channel_id")) = ? LIMIT 1',
                     [userId, 'App\\Models\\User', 'App\\Notifications\\NewMessageNotification', String(channelId)]
                 );
+            }
 
-                if (existing && existing.length > 0) {
-                    const row = existing[0];
-                    let oldData = row.data;
-                    if (typeof oldData === 'string') {
-                        oldData = JSON.parse(oldData);
-                    }
-
-                    const unreadCount = (oldData.unread_count || 0) + 1;
-                    const newData = {
-                        ...oldData,
-                        message_id: notificationData.message_id,
-                        sender_id: notificationData.sender_id,
-                        sender_name: notificationData.sender_name,
-                        content: notificationData.content,
-                        unread_count: unreadCount,
-                        created_at: new Date().toISOString()
-                    };
-
-                    await this.dataSource.query(
-                        'UPDATE notifications SET data = ?, updated_at = ? WHERE id = ?',
-                        [JSON.stringify(newData), new Date(), row.id]
-                    );
-
-                    return row.id;
+            if (existing && existing.length > 0) {
+                const row = existing[0];
+                let oldData = row.data;
+                if (typeof oldData === 'string') {
+                    oldData = JSON.parse(oldData);
                 }
+
+                const unreadCount = (oldData.unread_count || 0) + 1;
+                const newData = {
+                    ...oldData,
+                    message_id: notificationData.message_id,
+                    sender_id: notificationData.sender_id,
+                    sender_name: notificationData.sender_name,
+                    content: notificationData.content,
+                    unread_count: unreadCount,
+                    created_at: new Date().toISOString()
+                };
+
+                await this.dataSource.query(
+                    'UPDATE notifications SET data = ?, updated_at = ? WHERE id = ?',
+                    [JSON.stringify(newData), new Date(), row.id]
+                );
+
+                return row.id;
             }
 
             // 2. Create new notification if none exists
@@ -172,9 +184,9 @@ export class NotificationsService {
             const dataToSave = {
                 type: 'new_message',
                 message_id: notificationData.message_id,
-                channel_id: channelId,
-                channel_name: notificationData.channel_name,
-                channel_type: 'channel',
+                channel_id: channelId || null,
+                channel_name: notificationData.channel_name || null,
+                channel_type: isDM ? 'direct_message' : 'channel',
                 sender_id: notificationData.sender_id,
                 sender_name: notificationData.sender_name,
                 sender_avatar: notificationData.sender_avatar,
