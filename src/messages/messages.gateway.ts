@@ -138,6 +138,50 @@ export class MessagesGateway
     return { success: true };
   }
 
+  @SubscribeMessage('subscribe:dm')
+  async handleSubscribeDM(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { otherUserId: number },
+  ) {
+    try {
+      const { userId } = this.connectedUsers.get(client.id) || {};
+      if (!userId) {
+        return { error: 'Unauthorized' };
+      }
+
+      const roomName = this.getDMRoomName(userId, data.otherUserId);
+      client.join(roomName);
+
+      this.logger.log(
+        `User ${userId} subscribed to DM room ${roomName}`,
+      );
+
+      return { success: true, room: roomName };
+    } catch (error) {
+      this.logger.error(`Subscribe DM error:`, error);
+      return { error: error.message };
+    }
+  }
+
+  @SubscribeMessage('unsubscribe:dm')
+  async handleUnsubscribeDM(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { otherUserId: number },
+  ) {
+    const { userId } = this.connectedUsers.get(client.id) || {};
+    if (!userId) return { error: 'Unauthorized' };
+
+    const roomName = this.getDMRoomName(userId, data.otherUserId);
+    client.leave(roomName);
+    this.logger.log(`Client ${client.id} unsubscribed from DM room ${roomName}`);
+    return { success: true };
+  }
+
+  private getDMRoomName(userId1: number, userId2: number): string {
+    const sortedIds = [Number(userId1), Number(userId2)].sort((a, b) => a - b);
+    return `private-dm.${sortedIds[0]}_${sortedIds[1]}`;
+  }
+
   // Broadcast message sent event
   async broadcastMessageSent(message: any) {
     const channelName = `private-channel.${message.channelId}`;
@@ -226,6 +270,71 @@ export class MessagesGateway
     }
   }
 
+  // Broadcast direct message sent event
+  async broadcastDirectMessageSent(message: any) {
+    const roomName = this.getDMRoomName(message.fromUserId, message.toUserId);
+    this.server.to(roomName).emit('dm.sent', {
+      message: this.serializeDirectMessage(message),
+    });
+    this.logger.log(`Broadcasted dm.sent to room ${roomName}`);
+
+    // FCM Notification for recipient if offline
+    try {
+      const recipientId = Number(message.toUserId);
+      const senderId = Number(message.fromUserId);
+
+      // check if recipient is online
+      const onlineUserIds = new Set(
+        Array.from(this.connectedUsers.values()).map((u) => Number(u.userId)),
+      );
+
+      if (!onlineUserIds.has(recipientId)) {
+        this.logger.log(`👤 Recipient ${recipientId} is OFFLINE. Sending FCM...`);
+        const senderName = message.fromUser?.name || 'User';
+        const notificationTitle = `New message from ${senderName}`;
+        let notificationBody = message.content || 'Sent an attachment';
+
+        if (message.attachmentUrl) {
+          notificationBody = `📷 ${message.attachmentType || 'Attachment'}`;
+        }
+
+        if (notificationBody.length > 100) {
+          notificationBody = notificationBody.substring(0, 100) + '...';
+        }
+
+        // Record in database
+        const dbNotificationId = await this.notificationsService.recordDatabaseNotification(recipientId, {
+          message_id: message.id,
+          sender_id: senderId,
+          sender_name: senderName,
+          sender_avatar: message.fromUser?.profileImageUrl || null,
+          content: message.content || 'Sent an attachment',
+          channel_type: 'direct_message',
+        });
+
+        // Send FCM
+        await this.notificationsService.sendNotificationToUser(
+          recipientId,
+          notificationTitle,
+          notificationBody,
+          {
+            type: 'direct_message',
+            notification_id: dbNotificationId,
+            sender_id: String(senderId),
+            sender_name: senderName,
+            sender_avatar: message.fromUser?.profileImageUrl || '',
+            message_id: String(message.id),
+            company_id: String(message.companyId),
+            notification_tag: `dm_${senderId}`,
+            content: message.content || '',
+          },
+        );
+      }
+    } catch (error) {
+      this.logger.error('Error sending DM FCM notification:', error);
+    }
+  }
+
   // Broadcast message updated event
   broadcastMessageUpdated(message: any) {
     const channelName = `private-channel.${message.channelId}`;
@@ -243,6 +352,15 @@ export class MessagesGateway
       channel_id: channelId,
     });
     this.logger.log(`Broadcasted message.deleted to channel ${channelId}`);
+  }
+
+  // Broadcast direct message deleted event
+  broadcastDirectMessageDeleted(messageId: number, fromUserId: number, toUserId: number) {
+    const roomName = this.getDMRoomName(fromUserId, toUserId);
+    this.server.to(roomName).emit('dm.deleted', {
+      message_id: messageId,
+    });
+    this.logger.log(`Broadcasted dm.deleted to room ${roomName}`);
   }
 
   private extractToken(client: Socket): string | null {
@@ -344,6 +462,40 @@ export class MessagesGateway
           name: message.channel.name,
         }
         : null,
+    };
+  }
+
+  private serializeDirectMessage(message: any): any {
+    return {
+      id: message.id,
+      company_id: message.companyId,
+      content: message.content,
+      from_user_id: message.fromUserId,
+      to_user_id: message.toUserId,
+      reply_to_id: message.replyToId,
+      attachment_url: message.attachmentUrl,
+      attachment_type: message.attachmentType,
+      attachment_name: message.attachmentName,
+      is_read: message.isRead,
+      created_at: message.createdAt,
+      updated_at: message.updatedAt,
+      from_user: message.fromUser
+        ? {
+          id: message.fromUser.id,
+          name: message.fromUser.name,
+          email: message.fromUser.email,
+          profile_image_url: message.fromUser.profileImageUrl,
+        }
+        : null,
+      to_user: message.toUser
+        ? {
+          id: message.toUser.id,
+          name: message.toUser.name,
+          email: message.toUser.email,
+          profile_image_url: message.toUser.profileImageUrl,
+        }
+        : null,
+      reply_to: message.replyTo ? this.serializeDirectMessage(message.replyTo) : null,
     };
   }
 }
