@@ -9,15 +9,17 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS - matching Laravel configuration
-  const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',')
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8000'];
-
   app.enableCors({
-    origin: corsOrigins,
+    origin: [
+      /^(http:\/\/|https:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/, // Allow any localhost/127.0.0.1 with any port
+      'https://tafaahum.vercel.app',
+      'https://school.gumra-ai.com',
+      'https://slack.gumra-ai.com',
+      'https://marketplace.zoom.us',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
   });
 
   // Global prefix for API routes
