@@ -7,8 +7,11 @@ import {
   ValidateIf,
   MaxLength,
   IsBoolean,
+  IsObject,
 } from 'class-validator';
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
+import { CreatePollDto } from './create-poll.dto';
+
 
 export class CreateMessageDto {
   @ValidateIf((o) => !o.attachments || o.attachments.length === 0)
@@ -68,5 +71,9 @@ export class CreateMessageDto {
   @IsBoolean()
   @Expose({ name: 'is_urgent' })
   isUrgent?: boolean;
+  @IsOptional()
+  @IsObject()
+  @Type(() => CreatePollDto)
+  poll?: CreatePollDto;
 }
 

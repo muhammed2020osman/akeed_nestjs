@@ -358,6 +358,15 @@ export class MessagesGateway
     this.logger.log(`Broadcasted dm.deleted to room ${roomName}`);
   }
 
+  // Broadcast poll updated event
+  broadcastPollUpdated(poll: any, channelId: number) {
+    const channelName = `private-channel.${channelId}`;
+    this.server.to(channelName).emit('poll.updated', {
+      poll: this.serializePoll(poll),
+    });
+    this.logger.log(`Broadcasted poll.updated to channel ${channelId}`);
+  }
+
   private extractToken(client: Socket): string | null {
     // 1. Check Authorization header
     const authHeader = client.handshake.headers.authorization;
@@ -457,6 +466,24 @@ export class MessagesGateway
           name: message.channel.name,
         }
         : null,
+      poll: message.poll && message.poll.length > 0 ? this.serializePoll(message.poll[0]) : null,
+    };
+  }
+
+  private serializePoll(poll: any): any {
+    if (!poll) return null;
+    return {
+      id: poll.id,
+      question: poll.question,
+      allow_multiple_selection: !!poll.allowMultipleSelection,
+      is_anonymous: !!poll.isAnonymous,
+      created_by: poll.createdBy,
+      is_closed: !!poll.isClosed,
+      options: poll.options ? poll.options.map(opt => ({
+        id: opt.id,
+        text: opt.text,
+        voter_ids: opt.votes ? opt.votes.map(v => v.userId) : [],
+      })) : [],
     };
   }
 

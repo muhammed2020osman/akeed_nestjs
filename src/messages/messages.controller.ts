@@ -22,7 +22,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
 export class MessagesController {
-  constructor(private readonly messagesService: MessagesService) {}
+  constructor(private readonly messagesService: MessagesService) { }
 
   @Get()
   async index(
@@ -250,6 +250,37 @@ export class MessagesController {
         ticket_id: null,
         ticket: null,
       },
+    };
+  }
+
+  @Post('polls/:pollId/vote/:optionId')
+  async vote(
+    @Param('pollId') pollId: string,
+    @Param('optionId') optionId: string,
+    @CurrentUser() user: any,
+  ) {
+    const poll = await this.messagesService.votePoll(
+      parseInt(pollId),
+      parseInt(optionId),
+      user.userId,
+    );
+    return {
+      success: true,
+      message: 'Vote recorded successfully',
+      payload: poll,
+    };
+  }
+
+  @Post('polls/:pollId/close')
+  async close(@Param('pollId') pollId: string, @CurrentUser() user: any) {
+    const poll = await this.messagesService.closePoll(
+      parseInt(pollId),
+      user.userId,
+    );
+    return {
+      success: true,
+      message: 'Poll closed successfully',
+      payload: poll,
     };
   }
 }

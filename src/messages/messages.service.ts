@@ -15,12 +15,21 @@ import { UpdateMessageDto } from './dto/update-message.dto';
 import { MessageQueryDto } from './dto/message-query.dto';
 import { ChannelsService } from '../channels/channels.service';
 import { MessagesGateway } from './messages.gateway';
+import { Poll } from './entities/poll.entity';
+import { PollOption } from './entities/poll-option.entity';
+import { PollVote } from './entities/poll-vote.entity';
 
 @Injectable()
 export class MessagesService {
   constructor(
     @InjectRepository(Message)
     private messageRepository: Repository<Message>,
+    @InjectRepository(Poll)
+    private pollRepository: Repository<Poll>,
+    @InjectRepository(PollOption)
+    private pollOptionRepository: Repository<PollOption>,
+    @InjectRepository(PollVote)
+    private pollVoteRepository: Repository<PollVote>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
     @Optional()
@@ -46,6 +55,9 @@ export class MessagesService {
       .leftJoinAndSelect('message.channel', 'channel')
       .leftJoinAndSelect('message.replies', 'replies')
       .leftJoinAndSelect('message.threadReplies', 'threadReplies')
+      .leftJoinAndSelect('message.poll', 'poll')
+      .leftJoinAndSelect('poll.options', 'options')
+      .leftJoinAndSelect('options.votes', 'votes')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.channelId) {
@@ -102,6 +114,9 @@ export class MessagesService {
       .leftJoinAndSelect('message.channel', 'channel')
       .leftJoinAndSelect('message.replies', 'replies')
       .leftJoinAndSelect('message.threadReplies', 'threadReplies')
+      .leftJoinAndSelect('message.poll', 'poll')
+      .leftJoinAndSelect('poll.options', 'options')
+      .leftJoinAndSelect('options.votes', 'votes')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.topicId !== undefined) {
@@ -143,7 +158,7 @@ export class MessagesService {
   async findOne(id: number, userId: number, companyId: number): Promise<Message> {
     const message = await this.messageRepository.findOne({
       where: { id },
-      relations: ['user', 'channel', 'replies', 'threadReplies'],
+      relations: ['user', 'channel', 'replies', 'threadReplies', 'poll', 'poll.options', 'poll.options.votes'],
     });
 
     if (!message) {
@@ -169,8 +184,10 @@ export class MessagesService {
       companyId,
     );
 
+    const { poll: pollData, ...messageData } = createMessageDto;
+
     const newMessage = this.messageRepository.create({
-      ...createMessageDto,
+      ...messageData,
       userId,
       companyId,
       channelId: createMessageDto.channelId,
@@ -179,12 +196,33 @@ export class MessagesService {
       updatedAt: new Date(),
     });
 
-    const savedMessage = await this.messageRepository.save(newMessage);
+    const savedMessage = (await this.messageRepository.save(newMessage)) as Message;
+
+    // Handle Poll creation if provided
+    if (pollData) {
+      const poll = this.pollRepository.create({
+        question: pollData.question,
+        allowMultipleSelection: pollData.allowMultipleSelection,
+        isAnonymous: pollData.isAnonymous,
+        companyId,
+        createdBy: userId,
+        messageId: savedMessage.id,
+      });
+
+      const savedPoll = await this.pollRepository.save(poll);
+
+      // Create poll options
+      const options = pollData.options.map(text => this.pollOptionRepository.create({
+        text,
+        pollId: savedPoll.id,
+      }));
+      await this.pollOptionRepository.save(options);
+    }
 
     // Load relations
     const loadedMessage = await this.messageRepository.findOne({
       where: { id: savedMessage.id },
-      relations: ['user', 'channel', 'replies', 'threadReplies'],
+      relations: ['user', 'channel', 'replies', 'threadReplies', 'poll', 'poll.options', 'poll.options.votes'],
     });
 
     if (!loadedMessage) {
@@ -192,13 +230,12 @@ export class MessagesService {
     }
 
     // Broadcast message sent event
-    // Note: Gateway injection might be delayed, so we check if it exists
     try {
       if (this.messagesGateway) {
         this.messagesGateway.broadcastMessageSent(loadedMessage);
       }
     } catch (error) {
-      // Gateway might not be initialized yet, ignore
+      // Gateway error
     }
 
     return loadedMessage;
@@ -231,7 +268,7 @@ export class MessagesService {
     // Load relations
     const updatedMessage = await this.messageRepository.findOne({
       where: { id: message.id },
-      relations: ['user', 'channel', 'replies', 'threadReplies'],
+      relations: ['user', 'channel', 'replies', 'threadReplies', 'poll', 'poll.options', 'poll.options.votes'],
     });
 
     if (!updatedMessage) {
@@ -244,7 +281,7 @@ export class MessagesService {
         this.messagesGateway.broadcastMessageUpdated(updatedMessage);
       }
     } catch (error) {
-      // Gateway might not be initialized yet, ignore
+      // Gateway error
     }
 
     return updatedMessage;
@@ -267,7 +304,7 @@ export class MessagesService {
         this.messagesGateway.broadcastMessageDeleted(id, channelId);
       }
     } catch (error) {
-      // Gateway might not be initialized yet, ignore
+      // Gateway error
     }
   }
 
@@ -287,7 +324,7 @@ export class MessagesService {
         { replyToId: messageId, channelId: message.channelId },
         { threadParentId: messageId, channelId: message.channelId },
       ],
-      relations: ['user', 'channel'],
+      relations: ['user', 'channel', 'poll', 'poll.options', 'poll.options.votes'],
       order: { createdAt: 'ASC' },
     });
 
@@ -315,6 +352,9 @@ export class MessagesService {
       .leftJoinAndSelect('message.user', 'user')
       .leftJoinAndSelect('message.channel', 'channel')
       .leftJoin('message.replies', 'replies')
+      .leftJoinAndSelect('message.poll', 'poll')
+      .leftJoinAndSelect('poll.options', 'options')
+      .leftJoinAndSelect('options.votes', 'votes')
       .groupBy('message.id')
       .having('COUNT(replies.id) > 0')
       .orderBy('message.createdAt', 'DESC');
@@ -373,6 +413,9 @@ export class MessagesService {
       .leftJoinAndSelect('message.channel', 'channel')
       .leftJoinAndSelect('message.replies', 'replies')
       .leftJoinAndSelect('message.threadReplies', 'threadReplies')
+      .leftJoinAndSelect('message.poll', 'poll')
+      .leftJoinAndSelect('poll.options', 'options')
+      .leftJoinAndSelect('options.votes', 'votes')
       .orderBy('message.createdAt', 'DESC');
 
     const [data, total] = await queryBuilder
@@ -400,5 +443,68 @@ export class MessagesService {
       },
     };
   }
-}
 
+  async votePoll(pollId: number, optionId: number, userId: number): Promise<Poll> {
+    const poll = await this.pollRepository.findOne({ where: { id: pollId }, relations: ['options'] });
+    if (!poll) throw new NotFoundException('Poll not found');
+    if (poll.isClosed) throw new BadRequestException('Poll is closed');
+
+    const existingVotes = await this.pollVoteRepository.find({ where: { userId, pollId } });
+
+    if (!poll.allowMultipleSelection && existingVotes.length > 0) {
+      await this.pollVoteRepository.remove(existingVotes);
+    } else if (poll.allowMultipleSelection) {
+      const alreadyVotedThisOption = existingVotes.find(v => Number(v.pollOptionId) === optionId);
+      if (alreadyVotedThisOption) {
+        await this.pollVoteRepository.remove(alreadyVotedThisOption);
+        return this.getPollWithVotes(pollId);
+      }
+    }
+
+    const vote = this.pollVoteRepository.create({
+      pollId,
+      pollOptionId: optionId,
+      userId,
+    });
+    await this.pollVoteRepository.save(vote);
+
+    const updatedPoll = await this.getPollWithVotes(pollId);
+
+    // Broadcast poll update
+    try {
+      if (this.messagesGateway && poll.messageId) {
+        this.messagesGateway.broadcastPollUpdated(updatedPoll, poll.messageId);
+      }
+    } catch (e) { }
+
+    return updatedPoll;
+  }
+
+  async getPollWithVotes(pollId: number): Promise<Poll> {
+    const poll = await this.pollRepository.findOne({
+      where: { id: pollId },
+      relations: ['options', 'options.votes'],
+    });
+    if (!poll) throw new NotFoundException('Poll not found');
+    return poll;
+  }
+
+  async closePoll(pollId: number, userId: number): Promise<Poll> {
+    const poll = await this.pollRepository.findOne({ where: { id: pollId } });
+    if (!poll) throw new NotFoundException('Poll not found');
+    if (Number(poll.createdBy) !== userId) throw new ForbiddenException('Only creator can close the poll');
+
+    poll.isClosed = true;
+    await this.pollRepository.save(poll);
+
+    const updatedPoll = await this.getPollWithVotes(pollId);
+    // Broadcast
+    try {
+      if (this.messagesGateway && poll.messageId) {
+        this.messagesGateway.broadcastPollUpdated(updatedPoll, poll.messageId);
+      }
+    } catch (e) { }
+
+    return updatedPoll;
+  }
+}

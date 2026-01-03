@@ -10,12 +10,16 @@ import { MessagesGateway } from './messages.gateway';
 import { Message } from './entities/message.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { User } from '../users/entities/user.entity';
+import { Poll } from './entities/poll.entity';
+import { PollOption } from './entities/poll-option.entity';
+import { PollVote } from './entities/poll-vote.entity';
+
 import { ChannelsModule } from '../channels/channels.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Message, DirectMessage, User]),
+    TypeOrmModule.forFeature([Message, DirectMessage, User, Poll, PollOption, PollVote]),
     forwardRef(() => ChannelsModule),
     JwtModule,
     ConfigModule,

@@ -11,6 +11,8 @@ import {
 } from 'typeorm';
 import { Channel } from '../../channels/entities/channel.entity';
 import { User } from '../../users/entities/user.entity';
+import { Poll } from './poll.entity';
+
 
 @Entity('messages')
 @Index('idx_messages_company', ['companyId'])
@@ -96,5 +98,7 @@ export class Message {
   @OneToMany(() => Message, (message) => message.threadParent)
   threadReplies: Message[];
 
+  @OneToMany(() => Poll, (poll) => poll.message)
+  poll: Poll[];
 }
 
