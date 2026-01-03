@@ -7,7 +7,7 @@ import {
     Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { DirectMessage } from './entities/direct-message.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
@@ -167,41 +167,50 @@ export class DirectMessagesService {
 
     async getConversations(
         userId: number,
-        companyId: number,
+        _companyId: number, // companyId is kept for interface compatibility but ignored to fetch ALL user's DMs
     ): Promise<any[]> {
-        // We need to find unique users that the current user has exchanged messages with.
-        // We'll use a raw query or a complex query builder to get one latest message per user.
-
-        // Let's use QueryBuilder for better performance and grouping
-        const query = this.directMessageRepository
+        // Fetch the IDs of the latest message for each conversation
+        const lastMessageIdsRaw = await this.directMessageRepository
             .createQueryBuilder('dm')
-            .leftJoinAndSelect('dm.fromUser', 'fromUser')
-            .leftJoinAndSelect('dm.toUser', 'toUser')
-            .where('dm.companyId = :companyId', { companyId })
-            .andWhere('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
-            .orderBy('dm.createdAt', 'DESC');
+            .select('MAX(dm.id)', 'id')
+            .where('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
+            .andWhere('dm.deletedAt IS NULL')
+            .groupBy('CASE WHEN dm.fromUserId = :userId THEN dm.toUserId ELSE dm.fromUserId END')
+            .getRawMany();
 
-        const allMessages = await query.getMany();
+        const lastMessageIds = lastMessageIdsRaw.map(r => r.id);
 
-        const conversationsMap = new Map<number, any>();
+        if (lastMessageIds.length === 0) return [];
 
-        for (const msg of allMessages) {
+        // Fetch full message details with users for the latest messages
+        const lastMessages = await this.directMessageRepository.find({
+            where: { id: In(lastMessageIds) },
+            relations: ['fromUser', 'toUser'],
+            order: { createdAt: 'DESC' }
+        });
+
+        // Group unread counts by peer to fetch them efficiently in one query
+        const unreadCountsRaw = await this.directMessageRepository
+            .createQueryBuilder('dm')
+            .select('dm.fromUserId', 'peerId')
+            .addSelect('COUNT(dm.id)', 'count')
+            .where('dm.toUserId = :userId', { userId })
+            .andWhere('dm.isRead = :isRead', { isRead: false })
+            .andWhere('dm.deletedAt IS NULL')
+            .groupBy('dm.fromUserId')
+            .getRawMany();
+
+        const unreadCountsMap = new Map<number, number>();
+        unreadCountsRaw.forEach(r => unreadCountsMap.set(Number(r.peerId), Number(r.count)));
+
+        // Assemble the conversation objects
+        return lastMessages.map(msg => {
             const otherUser = msg.fromUserId === userId ? msg.toUser : msg.fromUser;
-            if (!otherUser) continue;
-
-            if (!conversationsMap.has(otherUser.id)) {
-                conversationsMap.set(otherUser.id, {
-                    user: otherUser,
-                    last_message: msg,
-                    unread_count: 0
-                });
-            }
-
-            if (!msg.isRead && msg.toUserId === userId) {
-                conversationsMap.get(otherUser.id).unread_count++;
-            }
-        }
-
-        return Array.from(conversationsMap.values());
+            return {
+                user: otherUser,
+                last_message: msg,
+                unread_count: unreadCountsMap.get(otherUser.id) || 0
+            };
+        });
     }
 }
