@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DirectMessage } from './entities/direct-message.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { MessagesGateway } from './messages.gateway';
 
@@ -17,6 +18,8 @@ export class DirectMessagesService {
     constructor(
         @InjectRepository(DirectMessage)
         private directMessageRepository: Repository<DirectMessage>,
+        @InjectRepository(User)
+        private userRepository: Repository<User>,
         @Optional()
         @Inject(forwardRef(() => MessagesGateway))
         private messagesGateway?: MessagesGateway,
@@ -62,6 +65,15 @@ export class DirectMessagesService {
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any }> {
+        // Verify that the other user exists and is in the same company
+        const otherUser = await this.userRepository.findOne({
+            where: { id: otherUserId, companyId },
+        });
+
+        if (!otherUser) {
+            throw new NotFoundException('User not found or not in the same company');
+        }
+
         const skip = (page - 1) * perPage;
 
         const [data, total] = await this.directMessageRepository.findAndCount({

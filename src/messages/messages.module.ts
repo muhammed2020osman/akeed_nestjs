@@ -9,12 +9,13 @@ import { DirectMessagesController } from './direct-messages.controller';
 import { MessagesGateway } from './messages.gateway';
 import { Message } from './entities/message.entity';
 import { DirectMessage } from './entities/direct-message.entity';
+import { User } from '../users/entities/user.entity';
 import { ChannelsModule } from '../channels/channels.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Message, DirectMessage]),
+    TypeOrmModule.forFeature([Message, DirectMessage, User]),
     forwardRef(() => ChannelsModule),
     JwtModule,
     ConfigModule,
