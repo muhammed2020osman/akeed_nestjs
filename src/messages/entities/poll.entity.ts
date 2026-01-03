@@ -4,6 +4,7 @@ import {
     Column,
     ManyToOne,
     OneToMany,
+    OneToOne,
     JoinColumn,
     CreateDateColumn,
     UpdateDateColumn,
@@ -49,9 +50,10 @@ export class Poll {
     @JoinColumn({ name: 'created_by' })
     user: User;
 
-    @ManyToOne(() => Message, { onDelete: 'CASCADE' })
+    @OneToOne(() => Message, (message) => message.poll, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'message_id' })
     message: Message;
+
 
     @OneToMany(() => PollOption, (option) => option.poll, { cascade: true })
     options: PollOption[];

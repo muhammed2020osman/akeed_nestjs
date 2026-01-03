@@ -450,23 +450,26 @@ export class MessagesService {
     if (poll.isClosed) throw new BadRequestException('Poll is closed');
 
     const existingVotes = await this.pollVoteRepository.find({ where: { userId, pollId } });
+    const targetVote = existingVotes.find(v => Number(v.pollOptionId) === optionId);
 
-    if (!poll.allowMultipleSelection && existingVotes.length > 0) {
-      await this.pollVoteRepository.remove(existingVotes);
-    } else if (poll.allowMultipleSelection) {
-      const alreadyVotedThisOption = existingVotes.find(v => Number(v.pollOptionId) === optionId);
-      if (alreadyVotedThisOption) {
-        await this.pollVoteRepository.remove(alreadyVotedThisOption);
-        return this.getPollWithVotes(pollId);
+    if (targetVote) {
+      // Toggle off: if already voted for this option, remove it
+      await this.pollVoteRepository.remove(targetVote);
+    } else {
+      // Toggle on: if voting for a new option
+      if (!poll.allowMultipleSelection && existingVotes.length > 0) {
+        // If single selection poll, remove all other existing votes first
+        await this.pollVoteRepository.remove(existingVotes);
       }
+
+      const vote = this.pollVoteRepository.create({
+        pollId,
+        pollOptionId: optionId,
+        userId,
+      });
+      await this.pollVoteRepository.save(vote);
     }
 
-    const vote = this.pollVoteRepository.create({
-      pollId,
-      pollOptionId: optionId,
-      userId,
-    });
-    await this.pollVoteRepository.save(vote);
 
     const updatedPoll = await this.getPollWithVotes(pollId);
 
@@ -480,14 +483,24 @@ export class MessagesService {
     return updatedPoll;
   }
 
-  async getPollWithVotes(pollId: number): Promise<Poll> {
+  async getPollWithVotes(pollId: number): Promise<any> {
     const poll = await this.pollRepository.findOne({
       where: { id: pollId },
       relations: ['options', 'options.votes'],
     });
     if (!poll) throw new NotFoundException('Poll not found');
-    return poll;
+
+    // Transform to include voter_ids for frontend compatibility
+    return {
+      ...poll,
+      options: poll.options.map(option => ({
+        ...option,
+        voterIds: (option.votes || []).map(v => Number(v.userId)),
+        voteCount: (option.votes || []).length,
+      })),
+    };
   }
+
 
   async closePoll(pollId: number, userId: number): Promise<Poll> {
     const poll = await this.pollRepository.findOne({ where: { id: pollId } });

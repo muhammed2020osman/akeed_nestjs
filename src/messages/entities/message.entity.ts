@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   OneToMany,
+  OneToOne,
   JoinColumn,
   Index,
   CreateDateColumn,
@@ -98,7 +99,8 @@ export class Message {
   @OneToMany(() => Message, (message) => message.threadParent)
   threadReplies: Message[];
 
-  @OneToMany(() => Poll, (poll) => poll.message)
-  poll: Poll[];
+  @OneToOne(() => Poll, (poll) => poll.message)
+  poll: Poll;
 }
+
 
