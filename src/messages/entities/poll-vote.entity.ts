@@ -20,7 +20,7 @@ export class PollVote {
     @Column({ name: 'poll_id', type: 'bigint', unsigned: true })
     pollId: number;
 
-    @Column({ name: 'poll_option_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'option_id', type: 'bigint', unsigned: true })
     pollOptionId: number;
 
     @Column({ name: 'user_id', type: 'bigint', unsigned: true })
@@ -35,7 +35,7 @@ export class PollVote {
     poll: Poll;
 
     @ManyToOne(() => PollOption, (option) => option.votes, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'poll_option_id' })
+    @JoinColumn({ name: 'option_id' })
     option: PollOption;
 
     @ManyToOne(() => User)
