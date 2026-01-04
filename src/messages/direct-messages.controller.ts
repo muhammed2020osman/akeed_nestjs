@@ -49,6 +49,20 @@ export class DirectMessagesController {
         );
     }
 
+    @Get('self')
+    async getSelfConversation(
+        @Req() req,
+        @Query('page') page: number = 1,
+        @Query('per_page') perPage: number = 50,
+    ) {
+        return this.directMessagesService.getSelfConversation(
+            req.user.id,
+            req.user.companyId,
+            +page,
+            +perPage,
+        );
+    }
+
     @Post()
     async create(@Req() req, @Body() createDto: CreateDirectMessageDto) {
         return this.directMessagesService.create(

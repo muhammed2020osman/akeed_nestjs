@@ -99,6 +99,38 @@ export class DirectMessagesService {
             },
         };
     }
+    async getSelfConversation(
+        userId: number,
+        companyId: number,
+        page: number = 1,
+        perPage: number = 50,
+    ): Promise<{ data: DirectMessage[]; meta: any }> {
+        const skip = (page - 1) * perPage;
+
+        const [data, total] = await this.directMessageRepository.findAndCount({
+            where: {
+                fromUserId: userId,
+                toUserId: userId,
+                companyId,
+            },
+            relations: ['fromUser', 'toUser', 'replyTo'],
+            order: { createdAt: 'DESC' },
+            skip,
+            take: perPage,
+        });
+
+        const totalPages = Math.ceil(total / perPage);
+
+        return {
+            data,
+            meta: {
+                current_page: page,
+                per_page: perPage,
+                total,
+                last_page: totalPages,
+            },
+        };
+    }
 
     async create(
         createDto: CreateDirectMessageDto,
