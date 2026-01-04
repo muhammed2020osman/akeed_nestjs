@@ -354,17 +354,30 @@ export class MessagesService {
 
     const queryBuilder = this.messageRepository
       .createQueryBuilder('message')
-      .where('message.replyToId IS NULL')
+      .where('message.companyId = :companyId', { companyId })
+      .andWhere('message.replyToId IS NULL')
       .andWhere('message.threadParentId IS NULL')
-      .andWhere('message.companyId = :companyId', { companyId })
       .leftJoinAndSelect('message.user', 'user')
       .leftJoinAndSelect('message.channel', 'channel')
-      .leftJoin('message.replies', 'replies')
+      .leftJoinAndSelect('message.replies', 'replies')
+      .leftJoinAndSelect('message.threadReplies', 'threadReplies')
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
-      .groupBy('message.id')
-      .having('COUNT(replies.id) > 0')
+      .andWhere(
+        (qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('1')
+            .from('messages', 'r')
+            .where(
+              'r.reply_to_id = message.id OR r.thread_parent_id = message.id',
+            )
+            .limit(1)
+            .getQuery();
+          return 'EXISTS (' + subQuery + ')';
+        },
+      )
       .orderBy('message.createdAt', 'DESC');
 
     const [data, total] = await queryBuilder
@@ -372,10 +385,17 @@ export class MessagesService {
       .take(perPage)
       .getManyAndCount();
 
+    // Map to include replies_count
+    const updatedData = data.map((message) => ({
+      ...message,
+      replies_count:
+        (message.replies?.length || 0) + (message.threadReplies?.length || 0),
+    }));
+
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data,
+      data: updatedData,
       meta: {
         current_page: page,
         per_page: perPage,
@@ -386,9 +406,13 @@ export class MessagesService {
       },
       links: {
         first: page === 1 ? null : `?page=1&per_page=${perPage}`,
-        last: page === totalPages ? null : `?page=${totalPages}&per_page=${perPage}`,
+        last:
+          page === totalPages
+            ? null
+            : `?page=${totalPages}&per_page=${perPage}`,
         prev: page > 1 ? `?page=${page - 1}&per_page=${perPage}` : null,
-        next: page < totalPages ? `?page=${page + 1}&per_page=${perPage}` : null,
+        next:
+          page < totalPages ? `?page=${page + 1}&per_page=${perPage}` : null,
       },
     };
   }
