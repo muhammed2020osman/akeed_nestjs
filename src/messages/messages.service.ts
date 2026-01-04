@@ -37,11 +37,44 @@ export class MessagesService {
     private messagesGateway?: MessagesGateway,
   ) { }
 
+  private transformPoll(poll: Poll) {
+    if (!poll) return null;
+
+    const options = (poll.options || []).map((option) => {
+      const voterIds = (option.votes || []).map((v) => Number(v.userId));
+      return {
+        ...option,
+        voter_ids: voterIds,
+        voterIds: voterIds,
+        vote_count: voterIds.length,
+        voteCount: voterIds.length,
+      };
+    });
+
+    const totalVotes = options.reduce((acc, opt) => acc + opt.vote_count, 0);
+
+    return {
+      ...poll,
+      options,
+      total_votes: totalVotes,
+      totalVotes: totalVotes,
+    };
+  }
+
+  private transformMessage(message: Message) {
+    return {
+      ...message,
+      replies_count:
+        (message.replies?.length || 0) + (message.threadReplies?.length || 0),
+      poll: this.transformPoll(message.poll),
+    };
+  }
+
   async findAll(
     userId: number,
     companyId: number,
     query: MessageQueryDto,
-  ): Promise<{ data: Message[]; meta: any; links: any }> {
+  ): Promise<{ data: any[]; meta: any; links: any }> {
     const page = query.page || 1;
     const perPage = query.perPage || 50;
     const skip = (page - 1) * perPage;
@@ -74,7 +107,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data,
+      data: data.map((msg) => this.transformMessage(msg)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -97,7 +130,7 @@ export class MessagesService {
     userId: number,
     companyId: number,
     query: MessageQueryDto,
-  ): Promise<{ data: Message[]; meta: any; links: any }> {
+  ): Promise<{ data: any[]; meta: any; links: any }> {
     // Check channel access
     await this.channelsService.checkChannelAccess(channelId, userId, companyId);
 
@@ -137,11 +170,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data: data.map((message) => ({
-        ...message,
-        replies_count:
-          (message.replies?.length || 0) + (message.threadReplies?.length || 0),
-      })),
+      data: data.map((message) => this.transformMessage(message)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -159,10 +188,18 @@ export class MessagesService {
     };
   }
 
-  async findOne(id: number, userId: number, companyId: number): Promise<Message> {
+  async findOne(id: number, userId: number, companyId: number): Promise<any> {
     const message = await this.messageRepository.findOne({
       where: { id },
-      relations: ['user', 'channel', 'replies', 'threadReplies', 'poll', 'poll.options', 'poll.options.votes'],
+      relations: [
+        'user',
+        'channel',
+        'replies',
+        'threadReplies',
+        'poll',
+        'poll.options',
+        'poll.options.votes',
+      ],
     });
 
     if (!message) {
@@ -173,14 +210,14 @@ export class MessagesService {
       throw new ForbiddenException('Access denied to this message');
     }
 
-    return message;
+    return this.transformMessage(message);
   }
 
   async create(
     createMessageDto: CreateMessageDto,
     userId: number,
     companyId: number,
-  ): Promise<Message> {
+  ): Promise<any> {
     // Check channel access
     await this.channelsService.checkChannelAccess(
       createMessageDto.channelId,
@@ -216,8 +253,8 @@ export class MessagesService {
       const savedPoll = await this.pollRepository.save(poll);
 
       // Create poll options with support for both string and object formats from client
-      const options = pollData.options.map(opt => {
-        const textValue = typeof opt === 'string' ? opt : (opt.text || '');
+      const options = pollData.options.map((opt) => {
+        const textValue = typeof opt === 'string' ? opt : opt.text || '';
         return this.pollOptionRepository.create({
           text: textValue,
           pollId: savedPoll.id,
@@ -229,23 +266,33 @@ export class MessagesService {
     // Load relations
     const loadedMessage = await this.messageRepository.findOne({
       where: { id: savedMessage.id },
-      relations: ['user', 'channel', 'replies', 'threadReplies', 'poll', 'poll.options', 'poll.options.votes'],
+      relations: [
+        'user',
+        'channel',
+        'replies',
+        'threadReplies',
+        'poll',
+        'poll.options',
+        'poll.options.votes',
+      ],
     });
 
     if (!loadedMessage) {
       throw new NotFoundException('Message not found after creation');
     }
 
+    const transformedMessage = this.transformMessage(loadedMessage);
+
     // Broadcast message sent event
     try {
       if (this.messagesGateway) {
-        this.messagesGateway.broadcastMessageSent(loadedMessage);
+        this.messagesGateway.broadcastMessageSent(transformedMessage);
       }
     } catch (error) {
       // Gateway error
     }
 
-    return loadedMessage;
+    return transformedMessage;
   }
 
   async update(
@@ -253,8 +300,14 @@ export class MessagesService {
     updateMessageDto: UpdateMessageDto,
     userId: number,
     companyId: number,
-  ): Promise<Message> {
-    const message = await this.findOne(id, userId, companyId);
+  ): Promise<any> {
+    const message = await this.messageRepository.findOne({
+      where: { id, companyId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
 
     // Check if user owns the message
     if (message.userId !== userId) {
@@ -275,27 +328,43 @@ export class MessagesService {
     // Load relations
     const updatedMessage = await this.messageRepository.findOne({
       where: { id: message.id },
-      relations: ['user', 'channel', 'replies', 'threadReplies', 'poll', 'poll.options', 'poll.options.votes'],
+      relations: [
+        'user',
+        'channel',
+        'replies',
+        'threadReplies',
+        'poll',
+        'poll.options',
+        'poll.options.votes',
+      ],
     });
 
     if (!updatedMessage) {
       throw new NotFoundException('Message not found after update');
     }
 
+    const transformedMessage = this.transformMessage(updatedMessage);
+
     // Broadcast message updated event
     try {
       if (this.messagesGateway) {
-        this.messagesGateway.broadcastMessageUpdated(updatedMessage);
+        this.messagesGateway.broadcastMessageUpdated(transformedMessage);
       }
     } catch (error) {
       // Gateway error
     }
 
-    return updatedMessage;
+    return transformedMessage;
   }
 
   async remove(id: number, userId: number, companyId: number): Promise<void> {
-    const message = await this.findOne(id, userId, companyId);
+    const message = await this.messageRepository.findOne({
+      where: { id, companyId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
 
     // Check if user owns the message
     if (message.userId !== userId) {
@@ -319,7 +388,7 @@ export class MessagesService {
     messageId: number,
     userId: number,
     companyId: number,
-  ): Promise<{ message: Message; replies: Message[]; replies_count: number }> {
+  ): Promise<{ message: any; replies: any[]; replies_count: number }> {
     console.log(`Getting replies for message ${messageId}`);
     const message = await this.findOne(messageId, userId, companyId);
 
@@ -329,19 +398,26 @@ export class MessagesService {
 
     // Use a direct find to ensure ALL types of replies and their relations are loaded
     const replies = await this.messageRepository.find({
-      where: [
-        { replyToId: messageId },
-        { threadParentId: messageId },
+      where: [{ replyToId: messageId }, { threadParentId: messageId }],
+      relations: [
+        'user',
+        'channel',
+        'poll',
+        'poll.options',
+        'poll.options.votes',
       ],
-      relations: ['user', 'channel', 'poll', 'poll.options', 'poll.options.votes'],
       order: { createdAt: 'ASC' },
     });
 
     console.log(`Found ${replies.length} replies for message ${messageId}`);
 
+    const transformedReplies = replies.map((reply) =>
+      this.transformMessage(reply),
+    );
+
     return {
       message,
-      replies,
+      replies: transformedReplies,
       replies_count: replies.length,
     };
   }
@@ -350,7 +426,7 @@ export class MessagesService {
     userId: number,
     companyId: number,
     query: MessageQueryDto,
-  ): Promise<{ data: Message[]; meta: any; links: any }> {
+  ): Promise<{ data: any[]; meta: any; links: any }> {
     const page = query.page || 1;
     const perPage = query.perPage || 20;
     const skip = (page - 1) * perPage;
@@ -367,20 +443,16 @@ export class MessagesService {
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
-      .andWhere(
-        (qb) => {
-          const subQuery = qb
-            .subQuery()
-            .select('1')
-            .from('messages', 'r')
-            .where(
-              'r.reply_to_id = message.id OR r.thread_parent_id = message.id',
-            )
-            .limit(1)
-            .getQuery();
-          return 'EXISTS (' + subQuery + ')';
-        },
-      )
+      .andWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from('messages', 'r')
+          .where('r.reply_to_id = message.id OR r.thread_parent_id = message.id')
+          .limit(1)
+          .getQuery();
+        return 'EXISTS (' + subQuery + ')';
+      })
       .orderBy('message.createdAt', 'DESC');
 
     const [data, total] = await queryBuilder
@@ -388,17 +460,10 @@ export class MessagesService {
       .take(perPage)
       .getManyAndCount();
 
-    // Map to include replies_count
-    const updatedData = data.map((message) => ({
-      ...message,
-      replies_count:
-        (message.replies?.length || 0) + (message.threadReplies?.length || 0),
-    }));
-
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data: updatedData,
+      data: data.map((msg) => this.transformMessage(msg)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -410,12 +475,9 @@ export class MessagesService {
       links: {
         first: page === 1 ? null : `?page=1&per_page=${perPage}`,
         last:
-          page === totalPages
-            ? null
-            : `?page=${totalPages}&per_page=${perPage}`,
+          page === totalPages ? null : `?page=${totalPages}&per_page=${perPage}`,
         prev: page > 1 ? `?page=${page - 1}&per_page=${perPage}` : null,
-        next:
-          page < totalPages ? `?page=${page + 1}&per_page=${perPage}` : null,
+        next: page < totalPages ? `?page=${page + 1}&per_page=${perPage}` : null,
       },
     };
   }
@@ -426,7 +488,7 @@ export class MessagesService {
     userId: number,
     companyId: number,
     query: MessageQueryDto,
-  ): Promise<{ data: Message[]; meta: any; links: any }> {
+  ): Promise<{ data: any[]; meta: any; links: any }> {
     if (!searchQuery || searchQuery.trim().length === 0) {
       throw new BadRequestException('Query parameter is required');
     }
@@ -461,7 +523,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data,
+      data: data.map((msg) => this.transformMessage(msg)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -479,13 +541,20 @@ export class MessagesService {
     };
   }
 
-  async votePoll(pollId: number, optionId: number, userId: number): Promise<Poll> {
-    const poll = await this.pollRepository.findOne({ where: { id: pollId }, relations: ['options'] });
+  async votePoll(pollId: number, optionId: number, userId: number): Promise<any> {
+    const poll = await this.pollRepository.findOne({
+      where: { id: pollId },
+      relations: ['options'],
+    });
     if (!poll) throw new NotFoundException('Poll not found');
     if (poll.isClosed) throw new BadRequestException('Poll is closed');
 
-    const existingVotes = await this.pollVoteRepository.find({ where: { userId, pollId } });
-    const targetVote = existingVotes.find(v => Number(v.pollOptionId) === optionId);
+    const existingVotes = await this.pollVoteRepository.find({
+      where: { userId, pollId },
+    });
+    const targetVote = existingVotes.find(
+      (v) => Number(v.pollOptionId) === optionId,
+    );
 
     if (targetVote) {
       // Toggle off: if already voted for this option, remove it
@@ -504,7 +573,6 @@ export class MessagesService {
       });
       await this.pollVoteRepository.save(vote);
     }
-
 
     const updatedPoll = await this.getPollWithVotes(pollId);
 
@@ -525,22 +593,14 @@ export class MessagesService {
     });
     if (!poll) throw new NotFoundException('Poll not found');
 
-    // Transform to include voter_ids for frontend compatibility
-    return {
-      ...poll,
-      options: poll.options.map(option => ({
-        ...option,
-        voterIds: (option.votes || []).map(v => Number(v.userId)),
-        voteCount: (option.votes || []).length,
-      })),
-    };
+    return this.transformPoll(poll);
   }
 
-
-  async closePoll(pollId: number, userId: number): Promise<Poll> {
+  async closePoll(pollId: number, userId: number): Promise<any> {
     const poll = await this.pollRepository.findOne({ where: { id: pollId } });
     if (!poll) throw new NotFoundException('Poll not found');
-    if (Number(poll.createdBy) !== userId) throw new ForbiddenException('Only creator can close the poll');
+    if (Number(poll.createdBy) !== userId)
+      throw new ForbiddenException('Only creator can close the poll');
 
     poll.isClosed = true;
     await this.pollRepository.save(poll);
