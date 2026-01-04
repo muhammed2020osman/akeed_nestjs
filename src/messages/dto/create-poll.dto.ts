@@ -4,7 +4,9 @@ import {
     IsArray,
     IsNotEmpty,
     ArrayMinSize,
+    IsOptional,
 } from 'class-validator';
+import { Expose } from 'class-transformer';
 
 export class CreatePollDto {
     @IsString()
@@ -12,13 +14,16 @@ export class CreatePollDto {
     question: string;
 
     @IsArray()
-    @IsString({ each: true })
     @ArrayMinSize(2)
-    options: string[];
+    options: any[];
 
     @IsBoolean()
+    @IsOptional()
+    @Expose({ name: 'allow_multiple_selection' })
     allowMultipleSelection: boolean;
 
     @IsBoolean()
+    @IsOptional()
+    @Expose({ name: 'is_anonymous' })
     isAnonymous: boolean;
 }

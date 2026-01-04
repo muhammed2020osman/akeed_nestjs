@@ -206,8 +206,8 @@ export class MessagesService {
     if (pollData) {
       const poll = this.pollRepository.create({
         question: pollData.question,
-        allowMultipleSelection: pollData.allowMultipleSelection,
-        isAnonymous: pollData.isAnonymous,
+        allowMultipleSelection: pollData.allowMultipleSelection ?? false,
+        isAnonymous: pollData.isAnonymous ?? false,
         companyId,
         createdBy: userId,
         messageId: savedMessage.id,
@@ -215,11 +215,14 @@ export class MessagesService {
 
       const savedPoll = await this.pollRepository.save(poll);
 
-      // Create poll options
-      const options = pollData.options.map(text => this.pollOptionRepository.create({
-        text,
-        pollId: savedPoll.id,
-      }));
+      // Create poll options with support for both string and object formats from client
+      const options = pollData.options.map(opt => {
+        const textValue = typeof opt === 'string' ? opt : (opt.text || '');
+        return this.pollOptionRepository.create({
+          text: textValue,
+          pollId: savedPoll.id,
+        });
+      });
       await this.pollOptionRepository.save(options);
     }
 
