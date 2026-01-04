@@ -313,27 +313,24 @@ export class MessagesService {
     userId: number,
     companyId: number,
   ): Promise<{ message: Message; replies: Message[]; replies_count: number }> {
+    console.log(`Getting replies for message ${messageId}`);
     const message = await this.findOne(messageId, userId, companyId);
 
     if (!message.channelId) {
       throw new BadRequestException('Message does not belong to a channel');
     }
 
-    // Combine both direct replies and thread replies
-    const repliesMap = new Map<number, Message>();
+    // Use a direct find to ensure ALL types of replies and their relations are loaded
+    const replies = await this.messageRepository.find({
+      where: [
+        { replyToId: messageId },
+        { threadParentId: messageId },
+      ],
+      relations: ['user', 'channel', 'poll', 'poll.options', 'poll.options.votes'],
+      order: { createdAt: 'ASC' },
+    });
 
-    if (message.replies) {
-      message.replies.forEach(r => repliesMap.set(r.id, r));
-    }
-
-    if (message.threadReplies) {
-      message.threadReplies.forEach(r => repliesMap.set(r.id, r));
-    }
-
-    const replies = Array.from(repliesMap.values());
-
-    // Sort by createdAt ASC (oldest first)
-    replies.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    console.log(`Found ${replies.length} replies for message ${messageId}`);
 
     return {
       message,
