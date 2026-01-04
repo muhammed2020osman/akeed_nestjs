@@ -190,13 +190,9 @@ export class MessagesController {
       user.companyId || user.company_id,
     );
     return {
-      success: true,
-      message: 'Thread messages retrieved successfully',
-      payload: {
-        parent: result.message,
-        replies: result.replies,
-        replies_count: result.replies_count,
-      },
+      parent: result.message,
+      replies: result.replies,
+      replies_count: result.replies_count,
     };
   }
 
@@ -208,13 +204,9 @@ export class MessagesController {
       user.companyId || user.company_id,
     );
     return {
-      success: true,
-      message: 'Replies retrieved successfully',
-      payload: {
-        message: result.message,
-        replies: result.replies,
-        replies_count: result.replies_count,
-      },
+      message: result.message,
+      replies: result.replies,
+      replies_count: result.replies_count,
     };
   }
 
