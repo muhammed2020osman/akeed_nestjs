@@ -137,7 +137,11 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data,
+      data: data.map((message) => ({
+        ...message,
+        replies_count:
+          (message.replies?.length || 0) + (message.threadReplies?.length || 0),
+      })),
       meta: {
         current_page: page,
         per_page: perPage,

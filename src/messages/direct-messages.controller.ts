@@ -61,7 +61,7 @@ export class DirectMessagesController {
     @Patch(':id/read')
     async markAsRead(@Req() req, @Param('id') id: string) {
         await this.directMessagesService.markAsRead(+id, req.user.id);
-        return { success: true };
+        return null;
     }
 
     @Get('unread-count')
@@ -70,7 +70,7 @@ export class DirectMessagesController {
             req.user.id,
             req.user.companyId,
         );
-        return { payload: count, status: true, code: 200 };
+        return count;
     }
 
     @Get('conversations')
@@ -84,6 +84,6 @@ export class DirectMessagesController {
     @Delete(':id')
     async remove(@Req() req, @Param('id') id: string) {
         await this.directMessagesService.remove(+id, req.user.id);
-        return { success: true };
+        return null;
     }
 }

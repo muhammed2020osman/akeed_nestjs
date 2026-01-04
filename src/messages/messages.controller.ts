@@ -34,11 +34,7 @@ export class MessagesController {
       user.companyId || user.company_id,
       query,
     );
-    return {
-      success: true,
-      message: 'Messages retrieved successfully',
-      payload: result,
-    };
+    return result;
   }
 
   @Get('threads')
@@ -51,11 +47,7 @@ export class MessagesController {
       user.companyId || user.company_id,
       query,
     );
-    return {
-      success: true,
-      message: 'Threads retrieved successfully',
-      payload: result,
-    };
+    return result;
   }
 
   @Get('starred')
@@ -104,11 +96,7 @@ export class MessagesController {
       user.userId,
       user.companyId || user.company_id,
     );
-    return {
-      success: true,
-      message: 'Message retrieved successfully',
-      payload: message,
-    };
+    return message;
   }
 
   @Post()
@@ -122,11 +110,7 @@ export class MessagesController {
       user.userId,
       user.companyId || user.company_id,
     );
-    return {
-      success: true,
-      message: 'Message created successfully',
-      payload: message,
-    };
+    return message;
   }
 
   @Put(':id')
@@ -141,11 +125,7 @@ export class MessagesController {
       user.userId,
       user.companyId || user.company_id,
     );
-    return {
-      success: true,
-      message: 'Message updated successfully',
-      payload: message,
-    };
+    return message;
   }
 
   @Patch(':id/topic')
@@ -160,11 +140,7 @@ export class MessagesController {
       user.userId,
       user.companyId || user.company_id,
     );
-    return {
-      success: true,
-      message: 'Message topic updated successfully',
-      payload: message,
-    };
+    return message;
   }
 
   @Delete(':id')
@@ -175,11 +151,7 @@ export class MessagesController {
       user.userId,
       user.companyId || user.company_id,
     );
-    return {
-      success: true,
-      message: 'Message deleted successfully',
-      payload: null,
-    };
+    return null;
   }
 
   @Get(':id/thread')
@@ -257,11 +229,7 @@ export class MessagesController {
       parseInt(optionId),
       user.userId,
     );
-    return {
-      success: true,
-      message: 'Vote recorded successfully',
-      payload: poll,
-    };
+    return poll;
   }
 
   @Post('polls/:pollId/close')
@@ -270,11 +238,7 @@ export class MessagesController {
       parseInt(pollId),
       user.userId,
     );
-    return {
-      success: true,
-      message: 'Poll closed successfully',
-      payload: poll,
-    };
+    return poll;
   }
 }
 
