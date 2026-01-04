@@ -195,6 +195,7 @@ export class MessagesController {
       payload: {
         parent: result.message,
         replies: result.replies,
+        replies_count: result.replies_count,
       },
     };
   }
