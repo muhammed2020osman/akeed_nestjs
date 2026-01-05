@@ -229,6 +229,8 @@ export class MessagesService {
       companyId,
     );
 
+    console.log('MessagesService.create - createMessageDto:', JSON.stringify(createMessageDto));
+
     const { poll: pollData, ...messageData } = createMessageDto;
 
     const newMessage = this.messageRepository.create({
