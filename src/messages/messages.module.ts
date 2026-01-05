@@ -14,13 +14,23 @@ import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
 import { PollVote } from './entities/poll-vote.entity';
 import { Topic } from './entities/topic.entity';
+import { Conversation } from './entities/conversation.entity';
 
 import { ChannelsModule } from '../channels/channels.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Message, DirectMessage, User, Poll, PollOption, PollVote, Topic]),
+    TypeOrmModule.forFeature([
+      Message,
+      DirectMessage,
+      User,
+      Poll,
+      PollOption,
+      PollVote,
+      Topic,
+      Conversation,
+    ]),
     forwardRef(() => ChannelsModule),
     JwtModule,
     ConfigModule,

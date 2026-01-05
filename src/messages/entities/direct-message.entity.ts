@@ -9,17 +9,22 @@ import {
     UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Conversation } from './conversation.entity';
 
 @Entity('direct_messages')
 @Index('idx_direct_messages_company', ['companyId'])
 @Index('from_user_id', ['fromUserId'])
 @Index('to_user_id', ['toUserId'])
+@Index('idx_direct_messages_conversation', ['conversationId'])
 export class DirectMessage {
     @PrimaryGeneratedColumn()
     id: number;
 
     @Column({ name: 'company_id', type: 'bigint', unsigned: true })
     companyId: number;
+
+    @Column({ name: 'conversation_id', type: 'bigint', unsigned: true, nullable: true })
+    conversationId: number | null;
 
     @Column({ type: 'text' })
     content: string;
@@ -55,6 +60,10 @@ export class DirectMessage {
     deletedAt: Date | null;
 
     // Relations
+    @ManyToOne(() => Conversation, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'conversation_id' })
+    conversation: Conversation;
+
     @ManyToOne(() => User, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'from_user_id' })
     fromUser: User;
