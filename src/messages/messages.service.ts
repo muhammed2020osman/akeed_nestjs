@@ -65,6 +65,7 @@ export class MessagesService {
   private transformMessage(message: Message) {
     return {
       ...message,
+      is_urgent: !!message.isUrgent,
       replies_count:
         (message.replies?.length || 0) + (message.threadReplies?.length || 0),
       poll: this.transformPoll(message.poll),
@@ -327,6 +328,10 @@ export class MessagesService {
 
     if (updateMessageDto.mentionedUserIds !== undefined) {
       message.mentions = updateMessageDto.mentionedUserIds;
+    }
+
+    if (updateMessageDto.isUrgent !== undefined) {
+      message.isUrgent = updateMessageDto.isUrgent;
     }
 
     await this.messageRepository.save(message);

@@ -50,6 +50,9 @@ export class DirectMessage {
     @Column({ name: 'is_read', type: 'tinyint', width: 1, default: false })
     isRead: boolean;
 
+    @Column({ name: 'is_urgent', type: 'boolean', default: false })
+    isUrgent: boolean;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

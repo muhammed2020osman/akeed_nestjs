@@ -475,6 +475,7 @@ export class MessagesGateway
           color: message.topic.color,
         }
         : null,
+      is_urgent: !!message.isUrgent,
       poll: message.poll && message.poll.length > 0 ? this.serializePoll(message.poll[0]) : null,
     };
   }
@@ -508,6 +509,7 @@ export class MessagesGateway
       attachment_type: message.attachmentType,
       attachment_name: message.attachmentName,
       is_read: message.isRead,
+      is_urgent: !!message.isUrgent,
       created_at: message.createdAt,
       updated_at: message.updatedAt,
       from_user: message.fromUser

@@ -24,4 +24,7 @@ export class CreateDirectMessageDto {
     @IsOptional()
     @IsString()
     attachmentName?: string;
+
+    @IsOptional()
+    isUrgent?: boolean;
 }

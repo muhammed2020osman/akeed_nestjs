@@ -69,6 +69,9 @@ export class Message {
   @Column({ name: 'topic_id', type: 'bigint', unsigned: true, nullable: true })
   topicId: number | null;
 
+  @Column({ name: 'is_urgent', type: 'boolean', default: false })
+  isUrgent: boolean;
+
   // Relations
   @ManyToOne(() => Channel, (channel) => channel.messages, {
     onDelete: 'CASCADE',
