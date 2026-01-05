@@ -229,8 +229,6 @@ export class MessagesService {
       companyId,
     );
 
-    console.log('MessagesService.create - createMessageDto:', JSON.stringify(createMessageDto));
-
     const { poll: pollData, ...messageData } = createMessageDto;
 
     const newMessage = this.messageRepository.create({
@@ -239,6 +237,7 @@ export class MessagesService {
       companyId,
       channelId: createMessageDto.channelId,
       mentions: createMessageDto.mentionedUserIds || [],
+      topic: createMessageDto.topicId ? ({ id: createMessageDto.topicId } as Topic) : null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

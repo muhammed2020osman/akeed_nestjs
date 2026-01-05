@@ -466,6 +466,15 @@ export class MessagesGateway
           name: message.channel.name,
         }
         : null,
+      topic_id: message.topicId,
+      topic: message.topic
+        ? {
+          id: message.topic.id,
+          channel_id: message.topic.channelId,
+          name: message.topic.name,
+          color: message.topic.color,
+        }
+        : null,
       poll: message.poll && message.poll.length > 0 ? this.serializePoll(message.poll[0]) : null,
     };
   }
