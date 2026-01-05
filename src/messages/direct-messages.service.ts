@@ -208,7 +208,7 @@ export class DirectMessagesService {
             .select('MAX(dm.id)', 'id')
             .where('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
             .andWhere('dm.deletedAt IS NULL')
-            .groupBy('CASE WHEN dm.fromUserId = :userId THEN dm.toUserId ELSE dm.fromUserId END')
+            .groupBy(`CASE WHEN dm.fromUserId = ${userId} THEN dm.toUserId ELSE dm.fromUserId END`)
             .orderBy('id', 'DESC')
             .limit(limit)
             .getRawMany();
