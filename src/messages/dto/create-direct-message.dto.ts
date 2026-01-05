@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsArray } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsArray, IsBoolean } from 'class-validator';
+import { Expose } from 'class-transformer';
 
 export class CreateDirectMessageDto {
     @IsNotEmpty()
@@ -26,5 +27,7 @@ export class CreateDirectMessageDto {
     attachmentName?: string;
 
     @IsOptional()
+    @IsBoolean()
+    @Expose({ name: 'is_urgent' })
     isUrgent?: boolean;
 }
