@@ -13,13 +13,17 @@ import { DirectMessage } from './direct-message.entity';
 
 @Entity('conversations')
 @Index('idx_conversations_company', ['companyId'])
-@Index(['user1Id', 'user2Id'], { unique: true })
+@Index('idx_conversations_workspace', ['workspaceId'])
+@Index(['workspaceId', 'user1Id', 'user2Id'], { unique: true })
 export class Conversation {
     @PrimaryGeneratedColumn()
     id: number;
 
     @Column({ name: 'company_id', type: 'bigint', unsigned: true })
     companyId: number;
+
+    @Column({ name: 'workspace_id', type: 'bigint', unsigned: true, nullable: true })
+    workspaceId: number | null;
 
     @Column({ name: 'user1_id', type: 'bigint', unsigned: true })
     user1Id: number;

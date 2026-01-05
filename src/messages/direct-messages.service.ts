@@ -31,18 +31,33 @@ export class DirectMessagesService {
     async findAll(
         userId: number,
         companyId: number,
+        workspaceId: number | null,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any }> {
         const skip = (page - 1) * perPage;
 
-        // This fetches all DMs for the user (inbox/outbox style)
-        const [data, total] = await this.directMessageRepository.findAndCount({
-            where: [
+        // Build where conditions with workspaceId filter
+        const whereConditions: any[] = [];
+        
+        if (workspaceId) {
+            // Filter by workspaceId through conversation
+            whereConditions.push(
+                { fromUserId: userId, companyId, conversation: { workspaceId } },
+                { toUserId: userId, companyId, conversation: { workspaceId } },
+            );
+        } else {
+            // Fallback to companyId only if workspaceId is not provided
+            whereConditions.push(
                 { fromUserId: userId, companyId },
                 { toUserId: userId, companyId },
-            ],
-            relations: ['fromUser', 'toUser', 'replyTo'],
+            );
+        }
+
+        // This fetches all DMs for the user (inbox/outbox style)
+        const [data, total] = await this.directMessageRepository.findAndCount({
+            where: whereConditions,
+            relations: ['fromUser', 'toUser', 'replyTo', 'conversation'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -65,6 +80,7 @@ export class DirectMessagesService {
         userId: number,
         otherUserId: number,
         companyId: number,
+        workspaceId: number | null,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
@@ -73,12 +89,13 @@ export class DirectMessagesService {
         const u2 = Math.max(userId, otherUserId);
 
         let conversation = await this.conversationRepository.findOne({
-            where: { user1Id: u1, user2Id: u2 }
+            where: { workspaceId, user1Id: u1, user2Id: u2 }
         });
 
         if (!conversation) {
             conversation = this.conversationRepository.create({
                 companyId,
+                workspaceId,
                 user1Id: u1,
                 user2Id: u2,
             });
@@ -111,11 +128,17 @@ export class DirectMessagesService {
     async getConversationById(
         id: number,
         userId: number,
+        workspaceId: number | null,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+        const whereCondition: any = { id };
+        if (workspaceId !== null) {
+            whereCondition.workspaceId = workspaceId;
+        }
+
         const conversation = await this.conversationRepository.findOne({
-            where: { id },
+            where: whereCondition,
             relations: ['user1', 'user2']
         });
 
@@ -126,6 +149,11 @@ export class DirectMessagesService {
         // Verify user is part of the conversation
         if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
             throw new ForbiddenException('You are not part of this conversation');
+        }
+
+        // Verify workspaceId matches if provided
+        if (workspaceId !== null && conversation.workspaceId !== workspaceId) {
+            throw new ForbiddenException('Conversation does not belong to this workspace');
         }
 
         const skip = (page - 1) * perPage;
@@ -155,17 +183,24 @@ export class DirectMessagesService {
     async getSelfConversation(
         userId: number,
         companyId: number,
+        workspaceId: number | null,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
         // Find or create self-conversation record
+        const whereCondition: any = { user1Id: userId, user2Id: userId };
+        if (workspaceId !== null) {
+            whereCondition.workspaceId = workspaceId;
+        }
+
         let conversation = await this.conversationRepository.findOne({
-            where: { user1Id: userId, user2Id: userId }
+            where: whereCondition
         });
 
         if (!conversation) {
             conversation = this.conversationRepository.create({
                 companyId,
+                workspaceId,
                 user1Id: userId,
                 user2Id: userId,
             });
@@ -200,18 +235,25 @@ export class DirectMessagesService {
         createDto: CreateDirectMessageDto,
         userId: number,
         companyId: number,
+        workspaceId: number | null,
     ): Promise<DirectMessage> {
         // Find or create conversation
         const u1 = Math.min(userId, createDto.toUserId);
         const u2 = Math.max(userId, createDto.toUserId);
 
+        const whereCondition: any = { user1Id: u1, user2Id: u2 };
+        if (workspaceId !== null) {
+            whereCondition.workspaceId = workspaceId;
+        }
+
         let conversation = await this.conversationRepository.findOne({
-            where: { user1Id: u1, user2Id: u2 }
+            where: whereCondition
         });
 
         if (!conversation) {
             conversation = this.conversationRepository.create({
                 companyId,
+                workspaceId,
                 user1Id: u1,
                 user2Id: u2,
             });
@@ -313,23 +355,45 @@ export class DirectMessagesService {
         }
     }
 
-    async getUnreadCount(userId: number, companyId: number): Promise<number> {
+    async getUnreadCount(userId: number, companyId: number, workspaceId: number | null): Promise<number> {
+        const whereCondition: any = { toUserId: userId, companyId, isRead: false };
+        
+        if (workspaceId) {
+            // Filter by workspaceId through conversation
+            whereCondition.conversation = { workspaceId };
+        }
+
         return await this.directMessageRepository.count({
-            where: { toUserId: userId, companyId, isRead: false },
+            where: whereCondition,
+            relations: ['conversation'],
         });
     }
 
     async getConversations(
         userId: number,
         _companyId: number, // companyId is kept for interface compatibility but ignored to fetch ALL user's DMs
+        workspaceId: number | null,
         limit: number = 50,
     ): Promise<any[]> {
+        // Build where conditions with workspaceId filter
+        const whereConditions: any[] = [];
+        const baseCondition = { lastMessageId: Not(IsNull()) };
+        
+        if (workspaceId !== null) {
+            whereConditions.push(
+                { user1Id: userId, workspaceId, ...baseCondition },
+                { user2Id: userId, workspaceId, ...baseCondition },
+            );
+        } else {
+            whereConditions.push(
+                { user1Id: userId, ...baseCondition },
+                { user2Id: userId, ...baseCondition },
+            );
+        }
+
         // Fetch conversations where the user is either user1 or user2
         const conversations = await this.conversationRepository.find({
-            where: [
-                { user1Id: userId, lastMessageId: Not(IsNull()) },
-                { user2Id: userId, lastMessageId: Not(IsNull()) },
-            ],
+            where: whereConditions,
             relations: ['user1', 'user2', 'lastMessage', 'lastMessage.fromUser', 'lastMessage.toUser'],
             order: { updatedAt: 'DESC' },
             take: limit,
@@ -338,13 +402,21 @@ export class DirectMessagesService {
         if (conversations.length === 0) return [];
 
         // Group unread counts by peer to fetch them efficiently in one query
-        const unreadCountsRaw = await this.directMessageRepository
+        const unreadQuery = this.directMessageRepository
             .createQueryBuilder('dm')
             .select('dm.fromUserId', 'peerId')
             .addSelect('COUNT(dm.id)', 'count')
             .where('dm.toUserId = :userId', { userId })
             .andWhere('dm.isRead = :isRead', { isRead: false })
-            .andWhere('dm.deletedAt IS NULL')
+            .andWhere('dm.deletedAt IS NULL');
+
+        if (workspaceId !== null) {
+            unreadQuery
+                .innerJoin('dm.conversation', 'conv')
+                .andWhere('conv.workspaceId = :workspaceId', { workspaceId });
+        }
+
+        const unreadCountsRaw = await unreadQuery
             .groupBy('dm.fromUserId')
             .getRawMany();
 
