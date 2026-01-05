@@ -357,6 +357,71 @@ export class MessagesService {
     return transformedMessage;
   }
 
+  async updateTopic(
+    id: number,
+    topicId: number | null,
+    userId: number,
+    companyId: number,
+  ): Promise<any> {
+    const message = await this.messageRepository.findOne({
+      where: { id, companyId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // Check channel access for the user
+    if (message.channelId) {
+      await this.channelsService.checkChannelAccess(
+        message.channelId,
+        userId,
+        companyId,
+      );
+    }
+
+    // Allow updating topicId regardless of ownership
+    message.topicId = topicId;
+    message.editedAt = new Date(); // Optional: mark as edited? Maybe not for structural changes.
+    // Let's decide NOT to update editedAt for topic moves, as it's meta-organization, not content change.
+    // Actually, keeping editedAt update might be confusing if content hasn't changed.
+    // Commenting it out for now.
+    // message.editedAt = new Date();
+
+    await this.messageRepository.save(message);
+
+    // Load relations
+    const updatedMessage = await this.messageRepository.findOne({
+      where: { id: message.id },
+      relations: [
+        'user',
+        'channel',
+        'replies',
+        'threadReplies',
+        'poll',
+        'poll.options',
+        'poll.options.votes',
+      ],
+    });
+
+    if (!updatedMessage) {
+      throw new NotFoundException('Message not found after update');
+    }
+
+    const transformedMessage = this.transformMessage(updatedMessage);
+
+    // Broadcast message updated event
+    try {
+      if (this.messagesGateway) {
+        this.messagesGateway.broadcastMessageUpdated(transformedMessage);
+      }
+    } catch (error) {
+      // Gateway error
+    }
+
+    return transformedMessage;
+  }
+
   async remove(id: number, userId: number, companyId: number): Promise<void> {
     const message = await this.messageRepository.findOne({
       where: { id, companyId },

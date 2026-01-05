@@ -134,9 +134,9 @@ export class MessagesController {
     @Body() updateMessageDto: UpdateMessageDto,
     @CurrentUser() user: any,
   ) {
-    const message = await this.messagesService.update(
+    const message = await this.messagesService.updateTopic(
       parseInt(id),
-      updateMessageDto,
+      updateMessageDto.topicId ?? null,
       user.userId,
       user.companyId || user.company_id,
     );
