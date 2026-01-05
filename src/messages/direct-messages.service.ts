@@ -202,17 +202,19 @@ export class DirectMessagesService {
         _companyId: number, // companyId is kept for interface compatibility but ignored to fetch ALL user's DMs
         limit: number = 50,
     ): Promise<any[]> {
-        // Fetch the IDs of the latest message for each conversation
+        // Fetch candidate IDs (fetch more to allow for duplicates and filtering)
+        const candidateLimit = limit * 5;
+
         // Fetch the IDs of the latest message for each conversation
         const lastMessageIdsRaw = await this.directMessageRepository
             .createQueryBuilder('dm')
             .select('MAX(dm.id)', 'id')
-            .addSelect(`CASE WHEN dm.fromUserId = :userId THEN dm.toUserId ELSE dm.fromUserId END`, 'peerId')
+            .addSelect(`CASE WHEN dm.fromUserId = ${userId} THEN dm.toUserId ELSE dm.fromUserId END`, 'peerId')
             .where('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
             .andWhere('dm.deletedAt IS NULL')
-            .groupBy('peerId')
+            .groupBy(`CASE WHEN dm.fromUserId = ${userId} THEN dm.toUserId ELSE dm.fromUserId END`)
             .orderBy('id', 'DESC')
-            .limit(limit)
+            .limit(candidateLimit)
             .getRawMany();
 
         const lastMessageIds = lastMessageIdsRaw.map(r => r.id);
@@ -240,14 +242,25 @@ export class DirectMessagesService {
         const unreadCountsMap = new Map<number, number>();
         unreadCountsRaw.forEach(r => unreadCountsMap.set(Number(r.peerId), Number(r.count)));
 
-        // Assemble the conversation objects
-        return lastMessages.map(msg => {
+        // Deduplicate and Assemble results
+        const results: any[] = [];
+        const seenPeerIds = new Set<number>();
+
+        for (const msg of lastMessages) {
+            if (results.length >= limit) break;
+
             const otherUser = msg.fromUserId === userId ? msg.toUser : msg.fromUser;
-            return {
+            // Verify user exists and hasn't been added already
+            if (!otherUser || seenPeerIds.has(otherUser.id)) continue;
+
+            seenPeerIds.add(otherUser.id);
+            results.push({
                 user: otherUser,
                 last_message: msg,
                 unread_count: unreadCountsMap.get(otherUser.id) || 0
-            };
-        });
+            });
+        }
+
+        return results;
     }
 }
