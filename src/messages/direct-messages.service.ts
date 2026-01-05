@@ -203,12 +203,14 @@ export class DirectMessagesService {
         limit: number = 50,
     ): Promise<any[]> {
         // Fetch the IDs of the latest message for each conversation
+        // Fetch the IDs of the latest message for each conversation
         const lastMessageIdsRaw = await this.directMessageRepository
             .createQueryBuilder('dm')
             .select('MAX(dm.id)', 'id')
+            .addSelect(`CASE WHEN dm.fromUserId = :userId THEN dm.toUserId ELSE dm.fromUserId END`, 'peerId')
             .where('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
             .andWhere('dm.deletedAt IS NULL')
-            .groupBy(`CASE WHEN dm.fromUserId = ${userId} THEN dm.toUserId ELSE dm.fromUserId END`)
+            .groupBy('peerId')
             .orderBy('id', 'DESC')
             .limit(limit)
             .getRawMany();
