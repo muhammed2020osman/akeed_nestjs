@@ -18,6 +18,7 @@ import { MessagesGateway } from './messages.gateway';
 import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
 import { PollVote } from './entities/poll-vote.entity';
+import { Topic } from './entities/topic.entity';
 
 @Injectable()
 export class MessagesService {
@@ -91,6 +92,7 @@ export class MessagesService {
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
+      .leftJoinAndSelect('message.topic', 'topic')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.channelId) {
@@ -150,6 +152,7 @@ export class MessagesService {
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
+      .leftJoinAndSelect('message.topic', 'topic')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.topicId !== undefined) {
@@ -199,6 +202,7 @@ export class MessagesService {
         'poll',
         'poll.options',
         'poll.options.votes',
+        'topic',
       ],
     });
 
@@ -274,6 +278,7 @@ export class MessagesService {
         'poll',
         'poll.options',
         'poll.options.votes',
+        'topic',
       ],
     });
 
@@ -336,6 +341,7 @@ export class MessagesService {
         'poll',
         'poll.options',
         'poll.options.votes',
+        'topic',
       ],
     });
 
@@ -401,6 +407,7 @@ export class MessagesService {
         'poll',
         'poll.options',
         'poll.options.votes',
+        'topic',
       ],
     });
 
@@ -470,6 +477,7 @@ export class MessagesService {
         'poll',
         'poll.options',
         'poll.options.votes',
+        'topic',
       ],
       order: { createdAt: 'ASC' },
     });
@@ -508,6 +516,7 @@ export class MessagesService {
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
+      .leftJoinAndSelect('message.topic', 'topic')
       .andWhere((qb) => {
         const subQuery = qb
           .subQuery()
@@ -578,6 +587,7 @@ export class MessagesService {
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
+      .leftJoinAndSelect('message.topic', 'topic')
       .orderBy('message.createdAt', 'DESC');
 
     const [data, total] = await queryBuilder

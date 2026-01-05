@@ -13,6 +13,7 @@ import {
 import { Channel } from '../../channels/entities/channel.entity';
 import { User } from '../../users/entities/user.entity';
 import { Poll } from './poll.entity';
+import { Topic } from './topic.entity';
 
 
 @Entity('messages')
@@ -101,6 +102,13 @@ export class Message {
 
   @OneToOne(() => Poll, (poll) => poll.message)
   poll: Poll;
+
+  @ManyToOne(() => Topic, (topic) => topic.messages, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'topic_id' })
+  topic: Topic | null;
 }
 
 
