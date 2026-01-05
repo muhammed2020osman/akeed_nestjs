@@ -9,7 +9,6 @@ import {
     Query,
     Req,
     Patch,
-    HttpService,
 } from '@nestjs/common';
 import { DirectMessagesService } from './direct-messages.service';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';

@@ -88,8 +88,13 @@ export class DirectMessagesService {
         const u1 = Math.min(userId, otherUserId);
         const u2 = Math.max(userId, otherUserId);
 
+        const whereCondition: any = { user1Id: u1, user2Id: u2 };
+        if (workspaceId !== null) {
+            whereCondition.workspaceId = workspaceId;
+        }
+
         let conversation = await this.conversationRepository.findOne({
-            where: { workspaceId, user1Id: u1, user2Id: u2 }
+            where: whereCondition
         });
 
         if (!conversation) {
