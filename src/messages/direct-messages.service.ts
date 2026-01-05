@@ -7,7 +7,7 @@ import {
     Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not, IsNull } from 'typeorm';
 import { DirectMessage } from './entities/direct-message.entity';
 import { User } from '../users/entities/user.entity';
 import { Conversation } from './entities/conversation.entity';
@@ -327,8 +327,8 @@ export class DirectMessagesService {
         // Fetch conversations where the user is either user1 or user2
         const conversations = await this.conversationRepository.find({
             where: [
-                { user1Id: userId },
-                { user2Id: userId },
+                { user1Id: userId, lastMessageId: Not(IsNull()) },
+                { user2Id: userId, lastMessageId: Not(IsNull()) },
             ],
             relations: ['user1', 'user2', 'lastMessage', 'lastMessage.fromUser', 'lastMessage.toUser'],
             order: { updatedAt: 'DESC' },
