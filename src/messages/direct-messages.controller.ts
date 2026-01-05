@@ -49,6 +49,21 @@ export class DirectMessagesController {
         );
     }
 
+    @Get('conversations/:id')
+    async getConversationById(
+        @Req() req,
+        @Param('id') id: string,
+        @Query('page') page: number = 1,
+        @Query('per_page') perPage: number = 50,
+    ) {
+        return this.directMessagesService.getConversationById(
+            +id,
+            req.user.id,
+            +page,
+            +perPage,
+        );
+    }
+
     @Get('self')
     async getSelfConversation(
         @Req() req,

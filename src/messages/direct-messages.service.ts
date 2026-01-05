@@ -67,23 +67,28 @@ export class DirectMessagesService {
         companyId: number,
         page: number = 1,
         perPage: number = 50,
-    ): Promise<{ data: DirectMessage[]; meta: any }> {
-        // Verify that the other user exists and is in the same company
-        const otherUser = await this.userRepository.findOne({
-            where: { id: otherUserId, companyId },
+    ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+        // Find or create conversation record
+        const u1 = Math.min(userId, otherUserId);
+        const u2 = Math.max(userId, otherUserId);
+
+        let conversation = await this.conversationRepository.findOne({
+            where: { user1Id: u1, user2Id: u2 }
         });
 
-        if (!otherUser) {
-            throw new NotFoundException('User not found or not in the same company');
+        if (!conversation) {
+            conversation = this.conversationRepository.create({
+                companyId,
+                user1Id: u1,
+                user2Id: u2,
+            });
+            conversation = await this.conversationRepository.save(conversation);
         }
 
         const skip = (page - 1) * perPage;
 
         const [data, total] = await this.directMessageRepository.findAndCount({
-            where: [
-                { fromUserId: userId, toUserId: otherUserId, companyId },
-                { fromUserId: otherUserId, toUserId: userId, companyId },
-            ],
+            where: { conversationId: conversation.id },
             relations: ['fromUser', 'toUser', 'replyTo'],
             order: { createdAt: 'DESC' },
             skip,
@@ -100,22 +105,77 @@ export class DirectMessagesService {
                 total,
                 last_page: totalPages,
             },
+            conversation,
         };
     }
+    async getConversationById(
+        id: number,
+        userId: number,
+        page: number = 1,
+        perPage: number = 50,
+    ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+        const conversation = await this.conversationRepository.findOne({
+            where: { id },
+            relations: ['user1', 'user2']
+        });
+
+        if (!conversation) {
+            throw new NotFoundException('Conversation not found');
+        }
+
+        // Verify user is part of the conversation
+        if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
+            throw new ForbiddenException('You are not part of this conversation');
+        }
+
+        const skip = (page - 1) * perPage;
+
+        const [data, total] = await this.directMessageRepository.findAndCount({
+            where: { conversationId: id },
+            relations: ['fromUser', 'toUser', 'replyTo'],
+            order: { createdAt: 'DESC' },
+            skip,
+            take: perPage,
+        });
+
+        const totalPages = Math.ceil(total / perPage);
+
+        return {
+            data,
+            meta: {
+                current_page: page,
+                per_page: perPage,
+                total,
+                last_page: totalPages,
+            },
+            conversation,
+        };
+    }
+
     async getSelfConversation(
         userId: number,
         companyId: number,
         page: number = 1,
         perPage: number = 50,
-    ): Promise<{ data: DirectMessage[]; meta: any }> {
+    ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+        // Find or create self-conversation record
+        let conversation = await this.conversationRepository.findOne({
+            where: { user1Id: userId, user2Id: userId }
+        });
+
+        if (!conversation) {
+            conversation = this.conversationRepository.create({
+                companyId,
+                user1Id: userId,
+                user2Id: userId,
+            });
+            conversation = await this.conversationRepository.save(conversation);
+        }
+
         const skip = (page - 1) * perPage;
 
         const [data, total] = await this.directMessageRepository.findAndCount({
-            where: {
-                fromUserId: userId,
-                toUserId: userId,
-                companyId,
-            },
+            where: { conversationId: conversation.id },
             relations: ['fromUser', 'toUser', 'replyTo'],
             order: { createdAt: 'DESC' },
             skip,
@@ -132,6 +192,7 @@ export class DirectMessagesService {
                 total,
                 last_page: totalPages,
             },
+            conversation,
         };
     }
 
@@ -294,6 +355,7 @@ export class DirectMessagesService {
         return conversations.map(conv => {
             const otherUser = conv.user1Id === Number(userId) ? conv.user2 : conv.user1;
             return {
+                id: conv.id,
                 user: otherUser,
                 last_message: conv.lastMessage,
                 unread_count: unreadCountsMap.get(otherUser.id) || 0,
