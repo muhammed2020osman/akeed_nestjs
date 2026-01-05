@@ -200,6 +200,7 @@ export class DirectMessagesService {
     async getConversations(
         userId: number,
         _companyId: number, // companyId is kept for interface compatibility but ignored to fetch ALL user's DMs
+        limit: number = 50,
     ): Promise<any[]> {
         // Fetch the IDs of the latest message for each conversation
         const lastMessageIdsRaw = await this.directMessageRepository
@@ -208,6 +209,8 @@ export class DirectMessagesService {
             .where('(dm.fromUserId = :userId OR dm.toUserId = :userId)', { userId })
             .andWhere('dm.deletedAt IS NULL')
             .groupBy('CASE WHEN dm.fromUserId = :userId THEN dm.toUserId ELSE dm.fromUserId END')
+            .orderBy('id', 'DESC')
+            .limit(limit)
             .getRawMany();
 
         const lastMessageIds = lastMessageIdsRaw.map(r => r.id);

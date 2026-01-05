@@ -88,10 +88,11 @@ export class DirectMessagesController {
     }
 
     @Get('conversations')
-    async getConversations(@Req() req) {
+    async getConversations(@Req() req, @Query('limit') limit?: number) {
         return this.directMessagesService.getConversations(
             req.user.id,
             req.user.companyId,
+            limit ? +limit : 50,
         );
     }
 
