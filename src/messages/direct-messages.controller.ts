@@ -22,6 +22,7 @@ export class DirectMessagesController {
         private readonly directMessagesService: DirectMessagesService,
     ) { }
 
+
     private getWorkspaceId(req: any, required: boolean = true): number | undefined {
         // Try to get workspaceId from query parameter first
         if (req.query?.workspaceId) {
