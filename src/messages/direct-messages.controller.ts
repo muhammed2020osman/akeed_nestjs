@@ -197,10 +197,12 @@ export class DirectMessagesController {
 
             return Array.isArray(response.data) ? response.data : [];
         } catch (error: any) {
-            throw new HttpException(
-                error.response?.data?.message || 'Failed to fetch workspace members',
-                error.response?.status || 500
-            );
+            const status = error.response?.status || 500;
+            const message = error.response?.data?.message || error.message || 'Failed to fetch workspace members';
+            // Log full error for debugging
+            console.error(`Error fetching workspace members: ${message}`, error.response?.data);
+
+            throw new HttpException(message, status);
         }
     }
 
