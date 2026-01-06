@@ -22,7 +22,7 @@ export class DirectMessagesController {
         private readonly directMessagesService: DirectMessagesService,
     ) { }
 
-    private getWorkspaceId(req: any): number {
+    private getWorkspaceId(req: any, required: boolean = true): number {
         // Try to get workspaceId from query parameter first
         if (req.query?.workspaceId) {
             return +req.query.workspaceId;
@@ -31,8 +31,13 @@ export class DirectMessagesController {
         if (req.headers?.['x-workspace-id']) {
             return +req.headers['x-workspace-id'];
         }
-        // Throw error if not found
-        throw new Error('Workspace ID is required. Please provide workspaceId in query parameter or X-Workspace-Id header');
+
+        // Throw error if needed
+        if (required) {
+            throw new Error('Workspace ID is required. Please provide workspaceId in query parameter or X-Workspace-Id header');
+        }
+
+        return undefined;
     }
 
     @Get()
@@ -41,7 +46,7 @@ export class DirectMessagesController {
         @Query('page') page: number = 1,
         @Query('per_page') perPage: number = 50,
     ) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, true);
         return this.directMessagesService.findAll(
             req.user.id,
             req.user.companyId,
@@ -132,7 +137,7 @@ export class DirectMessagesController {
 
     @Get('conversations')
     async getConversations(@Req() req, @Query('limit') limit?: number) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, false);
         return this.directMessagesService.getConversations(
             req.user.id,
             req.user.companyId,
@@ -147,7 +152,7 @@ export class DirectMessagesController {
         @Query('workspaceId') workspaceId?: string,
     ) {
         const targetWorkspaceId = workspaceId ? +workspaceId : this.getWorkspaceId(req);
-        
+
         if (!targetWorkspaceId) {
             return { success: false, message: 'Workspace ID is required', payload: { data: [] } };
         }

@@ -355,9 +355,9 @@ export class DirectMessagesService {
             throw new Error('Workspace ID is required for direct messages');
         }
 
-        const whereCondition: any = { 
-            toUserId: userId, 
-            companyId, 
+        const whereCondition: any = {
+            toUserId: userId,
+            companyId,
             isRead: false,
             conversation: { workspaceId }
         };
@@ -371,19 +371,20 @@ export class DirectMessagesService {
     async getConversations(
         userId: number,
         _companyId: number, // companyId is kept for interface compatibility but ignored to fetch ALL user's DMs
-        workspaceId: number,
+        workspaceId: number | undefined | null,
         limit: number = 50,
     ): Promise<any[]> {
-        if (!workspaceId) {
-            throw new Error('Workspace ID is required for direct messages');
-        }
-
-        // Build where conditions with workspaceId filter
+        // Build where conditions with workspaceId filter if provided
         const baseCondition = { lastMessageId: Not(IsNull()) };
-        const whereConditions: any[] = [
-            { user1Id: userId, workspaceId, ...baseCondition },
-            { user2Id: userId, workspaceId, ...baseCondition },
-        ];
+        const whereConditions: any[] = [];
+
+        if (workspaceId) {
+            whereConditions.push({ user1Id: userId, workspaceId, ...baseCondition });
+            whereConditions.push({ user2Id: userId, workspaceId, ...baseCondition });
+        } else {
+            whereConditions.push({ user1Id: userId, ...baseCondition });
+            whereConditions.push({ user2Id: userId, ...baseCondition });
+        }
 
         // Fetch conversations where the user is either user1 or user2
         const conversations = await this.conversationRepository.find({
@@ -404,7 +405,7 @@ export class DirectMessagesService {
             .andWhere('dm.isRead = :isRead', { isRead: false })
             .andWhere('dm.deletedAt IS NULL');
 
-        if (workspaceId !== null) {
+        if (workspaceId) {
             unreadQuery
                 .innerJoin('dm.conversation', 'conv')
                 .andWhere('conv.workspaceId = :workspaceId', { workspaceId });
