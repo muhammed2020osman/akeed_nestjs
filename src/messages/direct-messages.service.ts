@@ -13,6 +13,7 @@ import { User } from '../users/entities/user.entity';
 import { Conversation } from './entities/conversation.entity';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { MessagesGateway } from './messages.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class DirectMessagesService {
@@ -23,6 +24,7 @@ export class DirectMessagesService {
         private userRepository: Repository<User>,
         @InjectRepository(Conversation)
         private conversationRepository: Repository<Conversation>,
+        private notificationsService: NotificationsService,
         @Optional()
         @Inject(forwardRef(() => MessagesGateway))
         private messagesGateway?: MessagesGateway,
@@ -286,6 +288,39 @@ export class DirectMessagesService {
         // Broadcast DM sent event via Socket gateway
         if (this.messagesGateway) {
             this.messagesGateway.broadcastDirectMessageSent(loadedMessage);
+        }
+
+        // Send Push Notification to Recipient
+        try {
+            await this.notificationsService.sendNotificationToUser(
+                loadedMessage.toUserId,
+                loadedMessage.fromUser.name, // Title: Sender Name
+                loadedMessage.content, // Body: Message
+                {
+                    type: 'direct_message',
+                    direct_message_id: String(loadedMessage.id),
+                    from_user_id: String(loadedMessage.fromUserId),
+                    user_name: loadedMessage.fromUser.name,
+                    content: loadedMessage.content,
+                    notification_tag: `dm_${loadedMessage.fromUserId}`,
+                    is_urgent: loadedMessage.isUrgent ? 'true' : 'false',
+                }
+            );
+
+            // Record in Database
+            await this.notificationsService.recordDatabaseNotification(
+                loadedMessage.toUserId,
+                {
+                    message_id: loadedMessage.id,
+                    sender_id: loadedMessage.fromUserId,
+                    sender_name: loadedMessage.fromUser.name,
+                    sender_avatar: loadedMessage.fromUser.profileImageUrl,
+                    content: loadedMessage.content,
+                    channel_type: 'direct_message'
+                }
+            );
+        } catch (error) {
+            console.error('Error sending DM push notification:', error);
         }
 
         return loadedMessage;

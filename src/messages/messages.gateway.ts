@@ -195,84 +195,8 @@ export class MessagesGateway
     });
     this.logger.log(`Broadcasted message.sent to channel ${message.channelId}`);
 
-    // Hybrid Notification: Send FCM to offline users
-    try {
-      const channelId = Number(message.channelId);
-      const senderId = Number(message.userId);
-
-      const channelMembers = await this.dataSource.query(
-        'SELECT user_id FROM channel_members WHERE channel_id = ?',
-        [channelId],
-      );
-
-      // create set of online user IDs for O(1) lookup
-      const onlineUserIds = new Set(
-        Array.from(this.connectedUsers.values()).map((u) => Number(u.userId)),
-      );
-
-      this.logger.log(`🔔 Channel ${channelId} Members Found: ${channelMembers.length}. Online: [${Array.from(onlineUserIds).join(',')}]`);
-
-      for (const member of channelMembers) {
-        const memberId = Number(member.user_id);
-
-        // 1. Skip sender
-        if (memberId === senderId) {
-          this.logger.log(`⏭️ Skipping sender ${memberId}`);
-          continue;
-        }
-
-        // 2. Check if online
-        if (!onlineUserIds.has(memberId)) {
-          this.logger.log(`👤 User ${memberId} is OFFLINE. Proceeding with FCM...`);
-          const senderName = message.user?.name || 'User';
-          const channelNameString = message.channel?.name || 'Channel';
-          const notificationTitle = channelNameString; // Title should be channel name for channel messages
-          let notificationBody = `${senderName}: ${message.content || 'Sent an attachment'}`;
-
-          if (message.attachmentUrl) {
-            notificationBody = `${senderName}: 📷 ${message.attachmentType || 'Attachment'}`;
-          }
-
-          if (notificationBody.length > 100) {
-            notificationBody = notificationBody.substring(0, 100) + '...';
-          }
-
-          this.logger.log(`User ${memberId} is offline. Recording notification and sending FCM...`);
-
-          // 3. Record in database (match Laravel behavior)
-          const dbNotificationId = await this.notificationsService.recordDatabaseNotification(memberId, {
-            message_id: message.id,
-            channel_id: message.channelId,
-            channel_name: channelNameString,
-            sender_id: message.userId,
-            sender_name: senderName,
-            sender_avatar: message.user?.profileImageUrl || null,
-            content: message.content || 'Sent an attachment',
-          });
-
-          // 4. Send FCM
-          await this.notificationsService.sendNotificationToUser(
-            memberId,
-            notificationTitle,
-            notificationBody,
-            {
-              type: 'channel_message',
-              notification_id: dbNotificationId, // Pass the DB notification ID
-              channel_id: String(message.channelId),
-              channel_name: channelNameString,
-              user_name: senderName,
-              user_avatar: message.user?.profileImageUrl || '',
-              message_id: String(message.id),
-              company_id: String(message.companyId),
-              notification_tag: `channel_${message.channelId}`,
-              content: message.content || '',
-            },
-          );
-        }
-      }
-    } catch (error) {
-      this.logger.error('Error sending FCM notifications:', error);
-    }
+    // FCM handling is now centralised in MessagesService to ensure reliable delivery
+    // regardless of socket state.
   }
 
   // Broadcast direct message sent event
@@ -291,56 +215,8 @@ export class MessagesGateway
     });
     this.logger.log(`Broadcasted dm.sent (global) to ${recipientUserChannel}`);
 
-    // FCM Notification for recipient if offline
-    try {
-      const recipientId = Number(message.toUserId);
-      const senderId = Number(message.fromUserId);
-
-      // Always send FCM for DMs for maximum reliability
-      // The mobile app will handle duplicates or silence if already in chat
-      this.logger.log(`👤 Sending FCM to Recipient ${recipientId}...`);
-      const senderName = message.fromUser?.name || 'User';
-      const notificationTitle = `New message from ${senderName}`;
-      let notificationBody = message.content || 'Sent an attachment';
-
-      if (message.attachmentUrl) {
-        notificationBody = `📷 ${message.attachmentType || 'Attachment'}`;
-      }
-
-      if (notificationBody.length > 100) {
-        notificationBody = notificationBody.substring(0, 100) + '...';
-      }
-
-      // Record in database
-      const dbNotificationId = await this.notificationsService.recordDatabaseNotification(recipientId, {
-        message_id: message.id,
-        sender_id: senderId,
-        sender_name: senderName,
-        sender_avatar: message.fromUser?.profileImageUrl || null,
-        content: message.content || 'Sent an attachment',
-        channel_type: 'direct_message',
-      });
-
-      // Send FCM
-      await this.notificationsService.sendNotificationToUser(
-        recipientId,
-        notificationTitle,
-        notificationBody,
-        {
-          type: 'direct_message',
-          notification_id: dbNotificationId,
-          sender_id: String(senderId),
-          sender_name: senderName,
-          sender_avatar: message.fromUser?.profileImageUrl || '',
-          message_id: String(message.id),
-          company_id: String(message.companyId),
-          notification_tag: `dm_${senderId}`,
-          content: message.content || '',
-        },
-      );
-    } catch (error) {
-      this.logger.error('Error sending DM FCM notification:', error);
-    }
+    // FCM handling for DMs is now centralised in DirectMessagesService to ensure reliable delivery
+    // regardless of socket state.
   }
 
   // Broadcast message updated event

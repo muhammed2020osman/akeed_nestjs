@@ -19,6 +19,7 @@ import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
 import { PollVote } from './entities/poll-vote.entity';
 import { Topic } from './entities/topic.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class MessagesService {
@@ -33,6 +34,7 @@ export class MessagesService {
     private pollVoteRepository: Repository<PollVote>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
+    private notificationsService: NotificationsService,
     @Optional()
     @Inject(forwardRef(() => MessagesGateway))
     private messagesGateway?: MessagesGateway,
@@ -224,7 +226,7 @@ export class MessagesService {
     companyId: number,
   ): Promise<any> {
     // Check channel access
-    await this.channelsService.checkChannelAccess(
+    const channel = await this.channelsService.checkChannelAccess(
       createMessageDto.channelId,
       userId,
       companyId,
@@ -297,6 +299,50 @@ export class MessagesService {
       }
     } catch (error) {
       // Gateway error
+    }
+
+    // Send Push Notifications
+    try {
+      if (channel && channel.members) {
+        // Filter out the sender
+        const recipients = channel.members.filter(member => member.id !== userId);
+
+        for (const recipient of recipients) {
+          // 1. Send Push Notification
+          await this.notificationsService.sendNotificationToUser(
+            recipient.id,
+            channel.name, // Title: Channel Name
+            `${loadedMessage.user.name}: ${loadedMessage.content}`, // Body: User: Message
+            {
+              type: 'channel_message',
+              channel_id: String(channel.id),
+              channel_name: channel.name,
+              message_id: String(loadedMessage.id),
+              user_name: loadedMessage.user.name,
+              content: loadedMessage.content,
+              notification_tag: `channel_${channel.id}`,
+              is_urgent: loadedMessage.isUrgent ? 'true' : 'false',
+            }
+          );
+
+          // 2. Record in Database
+          await this.notificationsService.recordDatabaseNotification(
+            recipient.id,
+            {
+              message_id: loadedMessage.id,
+              channel_id: channel.id,
+              channel_name: channel.name,
+              sender_id: userId,
+              sender_name: loadedMessage.user.name,
+              sender_avatar: loadedMessage.user.profileImageUrl,
+              content: loadedMessage.content,
+              channel_type: 'channel'
+            }
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error sending push notifications:', error);
     }
 
     return transformedMessage;
