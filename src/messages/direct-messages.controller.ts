@@ -22,7 +22,7 @@ export class DirectMessagesController {
         private readonly directMessagesService: DirectMessagesService,
     ) { }
 
-    private getWorkspaceId(req: any, required: boolean = true): number {
+    private getWorkspaceId(req: any, required: boolean = true): number | undefined {
         // Try to get workspaceId from query parameter first
         if (req.query?.workspaceId) {
             return +req.query.workspaceId;
@@ -46,7 +46,7 @@ export class DirectMessagesController {
         @Query('page') page: number = 1,
         @Query('per_page') perPage: number = 50,
     ) {
-        const workspaceId = this.getWorkspaceId(req, true);
+        const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.findAll(
             req.user.id,
             req.user.companyId,
@@ -63,7 +63,7 @@ export class DirectMessagesController {
         @Query('page') page: number = 1,
         @Query('per_page') perPage: number = 50,
     ) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.getConversation(
             req.user.id,
             +otherUserId,
@@ -81,11 +81,11 @@ export class DirectMessagesController {
         @Query('page') page: number = 1,
         @Query('per_page') perPage: number = 50,
     ) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, false);
         return this.directMessagesService.getConversationById(
             +id,
             req.user.id,
-            workspaceId,
+            workspaceId || null,
             +page,
             +perPage,
         );
@@ -97,7 +97,7 @@ export class DirectMessagesController {
         @Query('page') page: number = 1,
         @Query('per_page') perPage: number = 50,
     ) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.getSelfConversation(
             req.user.id,
             req.user.companyId,
@@ -109,7 +109,7 @@ export class DirectMessagesController {
 
     @Post()
     async create(@Req() req, @Body() createDto: CreateDirectMessageDto) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.create(
             createDto,
             req.user.id,
@@ -126,7 +126,7 @@ export class DirectMessagesController {
 
     @Get('unread-count')
     async getUnreadCount(@Req() req) {
-        const workspaceId = this.getWorkspaceId(req);
+        const workspaceId = this.getWorkspaceId(req, true) as number;
         const count = await this.directMessagesService.getUnreadCount(
             req.user.id,
             req.user.companyId,
