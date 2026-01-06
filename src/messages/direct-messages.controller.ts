@@ -176,8 +176,8 @@ export class DirectMessagesController {
 
         try {
             // Get Laravel API base URL from environment
-            // Default to localhost/api (port 80) as php artisan serve (8000) is likely not running in production
-            const laravelApiUrl = process.env.LARAVEL_API_URL || 'http://127.0.0.1/api';
+            // Laravel is hosted on a separate server: slack.gumra-ai.com
+            const laravelApiUrl = process.env.LARAVEL_API_URL || 'https://slack.gumra-ai.com/api';
             console.log(`[Debug] Fetching members from: ${laravelApiUrl}/workspaces/${targetWorkspaceId}/members`);
 
             const token = req.headers.authorization?.replace('Bearer ', '') || '';
