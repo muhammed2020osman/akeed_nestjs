@@ -194,11 +194,27 @@ export class DirectMessagesController {
             );
 
             // Handle Laravel response format
-            if (response.data && response.data.payload && response.data.payload.data) {
-                return response.data.payload.data;
+            const data = response.data;
+
+            // Case 1: Standard Laravel API Resource collection (wrapped in data) inside payload
+            // Structure: { payload: { data: [...], meta: ... } }
+            if (data?.payload?.data && Array.isArray(data.payload.data)) {
+                return data.payload.data;
             }
 
-            return Array.isArray(response.data) ? response.data : [];
+            // Case 2: Direct array inside payload
+            // Structure: { payload: [...] }
+            if (data?.payload && Array.isArray(data.payload)) {
+                return data.payload;
+            }
+
+            // Case 3: Direct array response
+            // Structure: [...]
+            if (Array.isArray(data)) {
+                return data;
+            }
+
+            return [];
         } catch (error: any) {
             const status = error.response?.status || 500;
             const message = error.response?.data?.message || error.message || 'Failed to fetch workspace members';
