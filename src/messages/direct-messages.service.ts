@@ -31,28 +31,21 @@ export class DirectMessagesService {
     async findAll(
         userId: number,
         companyId: number,
-        workspaceId: number | null,
+        workspaceId: number,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any }> {
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
+        }
+
         const skip = (page - 1) * perPage;
 
         // Build where conditions with workspaceId filter
-        const whereConditions: any[] = [];
-        
-        if (workspaceId) {
-            // Filter by workspaceId through conversation
-            whereConditions.push(
-                { fromUserId: userId, companyId, conversation: { workspaceId } },
-                { toUserId: userId, companyId, conversation: { workspaceId } },
-            );
-        } else {
-            // Fallback to companyId only if workspaceId is not provided
-            whereConditions.push(
-                { fromUserId: userId, companyId },
-                { toUserId: userId, companyId },
-            );
-        }
+        const whereConditions: any[] = [
+            { fromUserId: userId, companyId, conversation: { workspaceId } },
+            { toUserId: userId, companyId, conversation: { workspaceId } },
+        ];
 
         // This fetches all DMs for the user (inbox/outbox style)
         const [data, total] = await this.directMessageRepository.findAndCount({
@@ -80,21 +73,20 @@ export class DirectMessagesService {
         userId: number,
         otherUserId: number,
         companyId: number,
-        workspaceId: number | null,
+        workspaceId: number,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
+        }
+
         // Find or create conversation record
         const u1 = Math.min(userId, otherUserId);
         const u2 = Math.max(userId, otherUserId);
 
-        const whereCondition: any = { user1Id: u1, user2Id: u2 };
-        if (workspaceId !== null) {
-            whereCondition.workspaceId = workspaceId;
-        }
-
         let conversation = await this.conversationRepository.findOne({
-            where: whereCondition
+            where: { workspaceId, user1Id: u1, user2Id: u2 }
         });
 
         if (!conversation) {
@@ -188,18 +180,17 @@ export class DirectMessagesService {
     async getSelfConversation(
         userId: number,
         companyId: number,
-        workspaceId: number | null,
+        workspaceId: number,
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
-        // Find or create self-conversation record
-        const whereCondition: any = { user1Id: userId, user2Id: userId };
-        if (workspaceId !== null) {
-            whereCondition.workspaceId = workspaceId;
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
         }
 
+        // Find or create self-conversation record
         let conversation = await this.conversationRepository.findOne({
-            where: whereCondition
+            where: { workspaceId, user1Id: userId, user2Id: userId }
         });
 
         if (!conversation) {
@@ -240,19 +231,18 @@ export class DirectMessagesService {
         createDto: CreateDirectMessageDto,
         userId: number,
         companyId: number,
-        workspaceId: number | null,
+        workspaceId: number,
     ): Promise<DirectMessage> {
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
+        }
+
         // Find or create conversation
         const u1 = Math.min(userId, createDto.toUserId);
         const u2 = Math.max(userId, createDto.toUserId);
 
-        const whereCondition: any = { user1Id: u1, user2Id: u2 };
-        if (workspaceId !== null) {
-            whereCondition.workspaceId = workspaceId;
-        }
-
         let conversation = await this.conversationRepository.findOne({
-            where: whereCondition
+            where: { workspaceId, user1Id: u1, user2Id: u2 }
         });
 
         if (!conversation) {
@@ -360,13 +350,17 @@ export class DirectMessagesService {
         }
     }
 
-    async getUnreadCount(userId: number, companyId: number, workspaceId: number | null): Promise<number> {
-        const whereCondition: any = { toUserId: userId, companyId, isRead: false };
-        
-        if (workspaceId) {
-            // Filter by workspaceId through conversation
-            whereCondition.conversation = { workspaceId };
+    async getUnreadCount(userId: number, companyId: number, workspaceId: number): Promise<number> {
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
         }
+
+        const whereCondition: any = { 
+            toUserId: userId, 
+            companyId, 
+            isRead: false,
+            conversation: { workspaceId }
+        };
 
         return await this.directMessageRepository.count({
             where: whereCondition,
@@ -377,24 +371,19 @@ export class DirectMessagesService {
     async getConversations(
         userId: number,
         _companyId: number, // companyId is kept for interface compatibility but ignored to fetch ALL user's DMs
-        workspaceId: number | null,
+        workspaceId: number,
         limit: number = 50,
     ): Promise<any[]> {
-        // Build where conditions with workspaceId filter
-        const whereConditions: any[] = [];
-        const baseCondition = { lastMessageId: Not(IsNull()) };
-        
-        if (workspaceId !== null) {
-            whereConditions.push(
-                { user1Id: userId, workspaceId, ...baseCondition },
-                { user2Id: userId, workspaceId, ...baseCondition },
-            );
-        } else {
-            whereConditions.push(
-                { user1Id: userId, ...baseCondition },
-                { user2Id: userId, ...baseCondition },
-            );
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
         }
+
+        // Build where conditions with workspaceId filter
+        const baseCondition = { lastMessageId: Not(IsNull()) };
+        const whereConditions: any[] = [
+            { user1Id: userId, workspaceId, ...baseCondition },
+            { user2Id: userId, workspaceId, ...baseCondition },
+        ];
 
         // Fetch conversations where the user is either user1 or user2
         const conversations = await this.conversationRepository.find({

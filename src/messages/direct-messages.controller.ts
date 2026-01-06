@@ -22,7 +22,7 @@ export class DirectMessagesController {
         private readonly directMessagesService: DirectMessagesService,
     ) { }
 
-    private getWorkspaceId(req: any): number | null {
+    private getWorkspaceId(req: any): number {
         // Try to get workspaceId from query parameter first
         if (req.query?.workspaceId) {
             return +req.query.workspaceId;
@@ -31,8 +31,8 @@ export class DirectMessagesController {
         if (req.headers?.['x-workspace-id']) {
             return +req.headers['x-workspace-id'];
         }
-        // Return null if not found
-        return null;
+        // Throw error if not found
+        throw new Error('Workspace ID is required. Please provide workspaceId in query parameter or X-Workspace-Id header');
     }
 
     @Get()

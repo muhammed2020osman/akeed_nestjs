@@ -22,8 +22,8 @@ export class Conversation {
     @Column({ name: 'company_id', type: 'bigint', unsigned: true })
     companyId: number;
 
-    @Column({ name: 'workspace_id', type: 'bigint', unsigned: true, nullable: true })
-    workspaceId: number | null;
+    @Column({ name: 'workspace_id', type: 'bigint', unsigned: true })
+    workspaceId: number;
 
     @Column({ name: 'user1_id', type: 'bigint', unsigned: true })
     user1Id: number;
