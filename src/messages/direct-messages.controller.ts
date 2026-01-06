@@ -9,6 +9,8 @@ import {
     Query,
     Req,
     Patch,
+    HttpException,
+    BadRequestException,
 } from '@nestjs/common';
 import { DirectMessagesService } from './direct-messages.service';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
@@ -166,10 +168,10 @@ export class DirectMessagesController {
         @Req() req,
         @Query('workspaceId') workspaceId?: string,
     ) {
-        const targetWorkspaceId = workspaceId ? +workspaceId : this.getWorkspaceId(req);
+        const targetWorkspaceId = workspaceId ? +workspaceId : this.getWorkspaceId(req, false);
 
         if (!targetWorkspaceId) {
-            return { success: false, message: 'Workspace ID is required', payload: { data: [] } };
+            throw new BadRequestException('Workspace ID is required');
         }
 
         try {
@@ -190,28 +192,15 @@ export class DirectMessagesController {
 
             // Handle Laravel response format
             if (response.data && response.data.payload && response.data.payload.data) {
-                return {
-                    success: true,
-                    message: 'Workspace members retrieved successfully',
-                    payload: {
-                        data: response.data.payload.data,
-                    },
-                };
+                return response.data.payload.data;
             }
 
-            return {
-                success: true,
-                message: 'Workspace members retrieved successfully',
-                payload: {
-                    data: Array.isArray(response.data) ? response.data : [],
-                },
-            };
+            return Array.isArray(response.data) ? response.data : [];
         } catch (error: any) {
-            return {
-                success: false,
-                message: error.response?.data?.message || 'Failed to fetch workspace members',
-                payload: { data: [] },
-            };
+            throw new HttpException(
+                error.response?.data?.message || 'Failed to fetch workspace members',
+                error.response?.status || 500
+            );
         }
     }
 
