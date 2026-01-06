@@ -177,6 +177,8 @@ export class DirectMessagesController {
         try {
             // Get Laravel API base URL from environment
             const laravelApiUrl = process.env.LARAVEL_API_URL || 'http://localhost:8000/api';
+            console.log(`[Debug] Fetching members from: ${laravelApiUrl}/workspaces/${targetWorkspaceId}/members`);
+
             const token = req.headers.authorization?.replace('Bearer ', '') || '';
 
             // Call Laravel API to get workspace members
@@ -199,8 +201,17 @@ export class DirectMessagesController {
         } catch (error: any) {
             const status = error.response?.status || 500;
             const message = error.response?.data?.message || error.message || 'Failed to fetch workspace members';
+
             // Log full error for debugging
-            console.error(`Error fetching workspace members: ${message}`, error.response?.data);
+            console.error(`[Debug] Error fetching workspace members: ${message}`);
+            if (error.response) {
+                console.error('[Debug] Response Status:', error.response.status);
+                // console.error('[Debug] Response Data:', JSON.stringify(error.response.data));
+            } else if (error.request) {
+                console.error('[Debug] No response received. Check Laravel URL/Port.');
+            } else {
+                console.error('[Debug] Request setup error:', error.message);
+            }
 
             throw new HttpException(message, status);
         }
