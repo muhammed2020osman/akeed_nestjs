@@ -301,6 +301,7 @@ export class DirectMessagesService {
                     direct_message_id: String(loadedMessage.id),
                     from_user_id: String(loadedMessage.fromUserId),
                     user_name: loadedMessage.fromUser.name,
+                    sender_name: loadedMessage.fromUser.name, // Added for Android compatibility
                     content: loadedMessage.content,
                     notification_tag: `dm_${loadedMessage.fromUserId}`,
                     is_urgent: loadedMessage.isUrgent ? 'true' : 'false',
