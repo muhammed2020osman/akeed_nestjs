@@ -146,6 +146,20 @@ export class DirectMessagesController {
         );
     }
 
+    @Get('workspace/:workspaceId/conversations')
+    async getConversationsByWorkspace(
+        @Req() req,
+        @Param('workspaceId') workspaceId: string,
+        @Query('limit') limit?: number,
+    ) {
+        return this.directMessagesService.getConversations(
+            req.user.id,
+            req.user.companyId,
+            +workspaceId,
+            limit ? +limit : 50,
+        );
+    }
+
     @Get('workspace-members')
     async getWorkspaceMembers(
         @Req() req,
