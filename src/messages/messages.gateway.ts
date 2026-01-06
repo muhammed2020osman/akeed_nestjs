@@ -82,6 +82,11 @@ export class MessagesGateway
       client.data.userId = userId;
       client.data.companyId = companyId;
 
+      // Auto-join user-specific global channel for notifications
+      const userChannelName = `private-user-${userId}`;
+      await client.join(userChannelName);
+      this.logger.log(`👤 Client ${client.id} joined global user channel: ${userChannelName}`);
+
       this.logger.log(`✅ Client ${client.id} connected successfully (User: ${userId}, Company: ${companyId})`);
     } catch (error) {
       this.logger.error(`❌ Connection error for client ${client.id}:`, error.message);
@@ -277,6 +282,14 @@ export class MessagesGateway
       message: this.serializeDirectMessage(message),
     });
     this.logger.log(`Broadcasted dm.sent to room ${roomName}`);
+
+    // Broadcast to recipient's global channel (for instant notification outside of chat)
+    const recipientUserChannel = `private-user-${message.toUserId}`;
+    this.server.to(recipientUserChannel).emit('dm.sent', {
+      message: this.serializeDirectMessage(message),
+      is_global_event: true
+    });
+    this.logger.log(`Broadcasted dm.sent (global) to ${recipientUserChannel}`);
 
     // FCM Notification for recipient if offline
     try {
