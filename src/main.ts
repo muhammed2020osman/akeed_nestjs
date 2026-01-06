@@ -16,10 +16,12 @@ async function bootstrap() {
       'https://school.gumra-ai.com',
       'https://slack.gumra-ai.com',
       'https://marketplace.zoom.us',
+      'https://souglink.com',
+      'https://www.souglink.com',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-Workspace-Id'],
   });
 
   // Global prefix for API routes
