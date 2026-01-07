@@ -100,7 +100,6 @@ export class FCMService {
                         sound: 'default',
                         priority: priority === 'high' ? 'high' : undefined,
                         visibility: 'public',
-                        vibrationPattern: priority === 'high' ? [0, 250, 250, 250] : undefined,
                         badgeCount: data.unread_count ? parseInt(data.unread_count) : 1,
                     },
                 },
