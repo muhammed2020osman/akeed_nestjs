@@ -100,7 +100,7 @@ export class FCMService {
                         sound: 'default',
                         priority: priority === 'high' ? 'high' : undefined,
                         visibility: 'public',
-                        badgeCount: data.unread_count ? parseInt(data.unread_count) : 1,
+                        notificationCount: data.unread_count ? parseInt(data.unread_count) : 1,
                     },
                 },
                 apns: {
