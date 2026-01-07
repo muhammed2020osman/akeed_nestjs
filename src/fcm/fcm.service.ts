@@ -5,18 +5,18 @@ import { DataSource } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export interface NotificationPriority {
-    'low' | 'normal' | 'high';
-}
+export type NotificationPriority = 'low' | 'normal' | 'high';
 
 export interface NotificationData {
     type?: 'chat' | 'channel' | 'direct_message' | 'system';
     chat_id?: string;
     channel_id?: string;
     message_id?: string;
-    sender_id?: number;
+    sender_id?: string;
     sender_name?: string;
     click_action?: string;
+    unread_count?: string;
+    is_urgent?: string;
     [key: string]: any;
 }
 
@@ -60,9 +60,6 @@ export class FCMService {
         }
     }
 
-    /**
-     * Send chat notification with WhatsApp-style Heads-up
-     */
     async sendChatNotification(params: {
         token: string;
         title: string;
@@ -86,7 +83,7 @@ export class FCMService {
                 notification: {
                     title,
                     body,
-                    imageUrl, // Optional: for large icon/image
+                    imageUrl,
                 },
                 data: {
                     type: data.type || 'chat',
@@ -94,17 +91,17 @@ export class FCMService {
                     ...data,
                 },
                 android: {
-                    priority: priority === 'high' ? 'high' : 'normal',
+                    priority: priority === 'high' ? 'high' : undefined,
                     ttl: 3600 * 4, // 4 hours
                     notification: {
                         channelId: priority === 'high' ? 'high_importance' : 'messages_work',
                         title,
                         body,
                         sound: 'default',
-                        priority: priority === 'high' ? 'high' : 'normal',
+                        priority: priority === 'high' ? 'high' : undefined,
                         visibility: 'public',
-                        vibrationPattern: priority === 'high' ? [0, 250, 250, 250] : [0, 300, 200, 300],
-                        badgeCount: data.unread_count || 1,
+                        vibrationPattern: priority === 'high' ? [0, 250, 250, 250] : undefined,
+                        badgeCount: data.unread_count ? parseInt(data.unread_count) : 1,
                     },
                 },
                 apns: {
@@ -115,7 +112,7 @@ export class FCMService {
                                 body,
                             },
                             sound: 'default',
-                            badge: data.unread_count || 1,
+                            badge: data.unread_count ? parseInt(data.unread_count) : 1,
                             'content-available': 1,
                             'mutable-content': 1,
                         },
@@ -143,9 +140,6 @@ export class FCMService {
         }
     }
 
-    /**
-     * Send notification to multiple devices
-     */
     async sendToMultipleDevices(params: {
         tokens: string[];
         title: string;
@@ -173,7 +167,6 @@ export class FCMService {
 
         this.logger.log(`📊 Batch send: ${successCount} success, ${failedCount} failed`);
 
-        // Remove failed tokens (invalid)
         if (failedTokens.length > 0) {
             await Promise.all(failedTokens.map(token => this.removeToken(token)));
         }
@@ -186,9 +179,6 @@ export class FCMService {
         };
     }
 
-    /**
-     * Send notification using topic
-     */
     async sendToTopic(params: {
         topic: string;
         title: string;
@@ -223,9 +213,6 @@ export class FCMService {
         }
     }
 
-    /**
-     * Remove invalid token from database
-     */
     private async removeToken(token: string): Promise<void> {
         try {
             await this.dataSource.query(
@@ -242,9 +229,6 @@ export class FCMService {
         }
     }
 
-    /**
-     * Subscribe user to topic
-     */
     async subscribeToTopic(topic: string, token: string) {
         try {
             await admin.messaging().subscribeToTopic(token, topic);
@@ -254,9 +238,6 @@ export class FCMService {
         }
     }
 
-    /**
-     * Unsubscribe user from topic
-     */
     async unsubscribeFromTopic(topic: string, token: string) {
         try {
             await admin.messaging().unsubscribeFromTopic(token, topic);
@@ -266,9 +247,6 @@ export class FCMService {
         }
     }
 
-    /**
-     * Send notification with retry logic
-     */
     async sendWithRetry(
         params: {
             token: string;
@@ -287,14 +265,13 @@ export class FCMService {
             }
 
             if (result.tokenRemoved) {
-                return result; // Don't retry invalid tokens
+                return result;
             }
 
             if (attempt === maxRetries - 1) {
-                return result; // Last attempt failed
+                return result;
             }
 
-            // Exponential backoff: 1s, 2s, 4s
             const delay = Math.pow(2, attempt) * 1000;
             this.logger.warn(`⚠️ Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));

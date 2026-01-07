@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { MessagesModule } from './messages/messages.module';
 import { ChannelsModule } from './channels/channels.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { FCMModule } from './fcm/fcm.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     MessagesModule,
     ChannelsModule,
     NotificationsModule,
+    FCMModule,
   ],
   controllers: [AppController],
   providers: [AppService],
