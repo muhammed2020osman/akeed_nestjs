@@ -43,10 +43,16 @@ export class FCMService {
 
                 if (fs.existsSync(absolutePath)) {
                     const serviceAccount = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
-                    this.firebaseApp = admin.initializeApp({
-                        credential: admin.credential.cert(serviceAccount),
-                    });
-                    this.logger.log('✅ Firebase initialized successfully');
+                    if (admin.apps.length === 0) {
+                        this.firebaseApp = admin.initializeApp({
+                            credential: admin.credential.cert(serviceAccount),
+                        });
+                        this.logger.log('✅ Firebase initialized successfully');
+                    } else {
+                        this.firebaseApp = admin.app();
+                        this.logger.log('ℹ️ Firebase already initialized, using existing app');
+                    }
+
                 } else {
                     this.logger.error(`❌ Service account not found: ${absolutePath}`);
                     throw new Error('Firebase service account file not found');

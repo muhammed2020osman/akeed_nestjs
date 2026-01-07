@@ -32,10 +32,15 @@ export class NotificationsService {
 
                 if (fs.existsSync(absolutePath)) {
                     const serviceAccount = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
-                    this.firebaseApp = admin.initializeApp({
-                        credential: admin.credential.cert(serviceAccount),
-                    });
-                    this.logger.log(`✅ Firebase initialized with service account from: ${absolutePath}`);
+                    if (admin.apps.length === 0) {
+                        this.firebaseApp = admin.initializeApp({
+                            credential: admin.credential.cert(serviceAccount),
+                        });
+                        this.logger.log(`✅ Firebase initialized with service account from: ${absolutePath}`);
+                    } else {
+                        this.firebaseApp = admin.app();
+                        this.logger.log(`ℹ️ Firebase already initialized, using existing app`);
+                    }
                 } else {
                     this.logger.error(`❌ Service account file not found at: ${absolutePath}`);
                 }
