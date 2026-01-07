@@ -97,7 +97,7 @@ export class NotificationsService {
                 const failedIndices = results
                     .map((r, i) => r.status === 'rejected' ? i : -1)
                     .filter(i => i !== -1);
-                
+
                 this.logger.warn(`⚠️ ${failedCount}/${tokens.length} notifications failed for user ${userId}`);
             }
 
@@ -137,7 +137,7 @@ export class NotificationsService {
                             sound: 'default',
                             channelId: 'messages_work',
                             priority: 'high',
-                            vibrationPattern: [500, 500, 500],
+                            vibrateTimingsMillis: [500, 500, 500],
                             visibility: 'public',
                         },
                     },
