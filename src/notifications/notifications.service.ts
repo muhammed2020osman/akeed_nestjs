@@ -85,9 +85,40 @@ export class NotificationsService {
                 return;
             }
 
-            // 2. Send to all tokens
-            for (const fcmToken of tokens) {
-                // Construct payloads
+            // 2. Send to all tokens with retry and logging
+            const results = await Promise.allSettled(
+                tokens.map(fcmToken => this.sendWithRetry(fcmToken, title, body, data))
+            );
+
+            const successCount = results.filter(r => r.status === 'fulfilled').length;
+            const failedCount = results.filter(r => r.status === 'rejected').length;
+
+            if (failedCount > 0) {
+                const failedIndices = results
+                    .map((r, i) => r.status === 'rejected' ? i : -1)
+                    .filter(i => i !== -1);
+                
+                this.logger.warn(`⚠️ ${failedCount}/${tokens.length} notifications failed for user ${userId}`);
+            }
+
+            this.logger.log(`📲 Notification sent to user ${userId}: ${successCount} success, ${failedCount} failed`);
+        } catch (error) {
+            this.logger.error(`❌ Error sending notification to user ${userId}:`, error);
+        }
+    }
+
+    /**
+     * Send notification with retry logic
+     */
+    private async sendWithRetry(
+        fcmToken: string,
+        title: string,
+        body: string,
+        data: Record<string, string>,
+        maxRetries = 3
+    ): Promise<void> {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
                 const message: admin.messaging.Message = {
                     token: fcmToken,
                     notification: {
@@ -96,33 +127,88 @@ export class NotificationsService {
                     },
                     data: {
                         ...data,
-                        click_action: 'FLUTTER_NOTIFICATION_CLICK', // Standard for Flutter
+                        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                        sent_at: new Date().toISOString(),
                     },
                     android: {
                         priority: 'high',
+                        ttl: 3600 * 4, // 4 hours TTL
                         notification: {
                             sound: 'default',
-                            channelId: 'messages_work', // Match Android channel ID
+                            channelId: 'messages_work',
+                            priority: 'high',
+                            vibrationPattern: [500, 500, 500],
+                            visibility: 'public',
                         },
                     },
                     apns: {
                         payload: {
                             aps: {
                                 sound: 'default',
-                                badge: 1, // Optional: handle badges if needed
+                                badge: 1,
+                                'content-available': 1,
+                                alert: {
+                                    title,
+                                    body,
+                                },
                             },
+                        },
+                        headers: {
+                            'apns-priority': '10',
                         },
                     },
                 };
 
-                // Send via Firebase
-                if (this.firebaseApp) {
-                    await admin.messaging().send(message);
+                if (!this.firebaseApp) {
+                    throw new Error('Firebase app not initialized');
                 }
+
+                const messageId = await admin.messaging().send(message);
+                this.logger.log(`✅ Notification sent successfully: ${messageId} (attempt ${attempt + 1})`);
+                return;
+            } catch (error: any) {
+                const errorCode = error?.code;
+
+                if (errorCode === 'messaging/registration-token-not-registered') {
+                    this.logger.warn(`🗑️ Invalid token detected: ${fcmToken.substring(0, 20)}...`);
+                    await this.removeToken(fcmToken);
+                    return;
+                }
+
+                if (errorCode === 'messaging/invalid-argument') {
+                    this.logger.error(`❌ Invalid argument for token: ${fcmToken.substring(0, 20)}...`, error);
+                    await this.removeToken(fcmToken);
+                    return;
+                }
+
+                if (attempt === maxRetries - 1) {
+                    this.logger.error(`❌ Failed after ${maxRetries} attempts for token: ${fcmToken.substring(0, 20)}...`, error);
+                    throw error;
+                }
+
+                const delay = Math.pow(2, attempt) * 1000;
+                this.logger.warn(`⚠️ Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
-            this.logger.log(`📲 Notification sent to user ${userId} via FCM (${tokens.length} devices)`);
+        }
+    }
+
+    /**
+     * Remove invalid token from database
+     */
+    private async removeToken(fcmToken: string): Promise<void> {
+        try {
+            await this.dataSource.query(
+                'DELETE FROM push_subscriptions WHERE fcm_token = ?',
+                [fcmToken]
+            );
+            await this.dataSource.query(
+                'UPDATE users SET fcm_token = NULL WHERE fcm_token = ?',
+                [fcmToken]
+            );
+            this.logger.log(`🗑️ Removed invalid token from database`);
         } catch (error) {
-            this.logger.error(`❌ Error sending notification to user ${userId}:`, error);
+            this.logger.error(`❌ Failed to remove invalid token:`, error);
         }
     }
 
