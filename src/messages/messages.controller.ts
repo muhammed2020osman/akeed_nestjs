@@ -125,7 +125,6 @@ export class MessagesController {
       updateMessageDto,
       user.userId,
       user.companyId || user.company_id,
-      user.role,
     );
     return message;
   }
