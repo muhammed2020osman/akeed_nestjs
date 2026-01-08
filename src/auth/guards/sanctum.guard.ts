@@ -67,6 +67,7 @@ export class SanctumGuard implements CanActivate {
             id: user.id,
             userId: user.id,
             companyId: user.company_id,
+            role: user.role,
             email: user.email,
             name: user.name,
         };

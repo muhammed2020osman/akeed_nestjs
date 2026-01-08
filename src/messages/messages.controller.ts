@@ -109,6 +109,7 @@ export class MessagesController {
       createMessageDto,
       user.userId,
       user.companyId || user.company_id,
+      user.role,
     );
     return message;
   }
@@ -124,6 +125,7 @@ export class MessagesController {
       updateMessageDto,
       user.userId,
       user.companyId || user.company_id,
+      user.role,
     );
     return message;
   }
@@ -139,6 +141,7 @@ export class MessagesController {
       updateMessageDto.topicId ?? null,
       user.userId,
       user.companyId || user.company_id,
+      user.role,
     );
     return message;
   }

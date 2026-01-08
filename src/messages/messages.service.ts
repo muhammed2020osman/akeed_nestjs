@@ -135,9 +135,10 @@ export class MessagesService {
     userId: number,
     companyId: number,
     query: MessageQueryDto,
+    role?: string,
   ): Promise<{ data: any[]; meta: any; links: any }> {
     // Check channel access
-    await this.channelsService.checkChannelAccess(channelId, userId, companyId);
+    await this.channelsService.checkChannelAccess(channelId, userId, companyId, role);
 
     const page = query.page || 1;
     const perPage = query.perPage || 50;
@@ -224,12 +225,14 @@ export class MessagesService {
     createMessageDto: CreateMessageDto,
     userId: number,
     companyId: number,
+    role?: string,
   ): Promise<any> {
     // Check channel access
     const channel = await this.channelsService.checkChannelAccess(
       createMessageDto.channelId,
       userId,
       companyId,
+      role,
     );
 
     const { poll: pollData, ...messageData } = createMessageDto;
@@ -420,6 +423,7 @@ export class MessagesService {
     topicId: number | null,
     userId: number,
     companyId: number,
+    role?: string,
   ): Promise<any> {
     const message = await this.messageRepository.findOne({
       where: { id, companyId },
@@ -435,6 +439,7 @@ export class MessagesService {
         message.channelId,
         userId,
         companyId,
+        role,
       );
     }
 
@@ -614,13 +619,14 @@ export class MessagesService {
     userId: number,
     companyId: number,
     query: MessageQueryDto,
+    role?: string,
   ): Promise<{ data: any[]; meta: any; links: any }> {
     if (!searchQuery || searchQuery.trim().length === 0) {
       throw new BadRequestException('Query parameter is required');
     }
 
     // Check channel access
-    await this.channelsService.checkChannelAccess(channelId, userId, companyId);
+    await this.channelsService.checkChannelAccess(channelId, userId, companyId, role);
 
     const page = query.page || 1;
     const perPage = query.perPage || 50;

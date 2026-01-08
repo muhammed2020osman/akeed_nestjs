@@ -30,6 +30,7 @@ export class ChannelsController {
       user.userId,
       user.companyId || user.company_id,
       query,
+      user.role,
     );
     return {
       status: true,
@@ -52,6 +53,7 @@ export class ChannelsController {
       user.userId,
       user.companyId || user.company_id,
       query,
+      user.role,
     );
     return {
       success: true,

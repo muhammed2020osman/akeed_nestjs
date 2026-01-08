@@ -11,7 +11,7 @@ export class ChannelsService {
     private channelRepository: Repository<Channel>,
     @InjectRepository(ChannelMember)
     private channelMemberRepository: Repository<ChannelMember>,
-  ) {}
+  ) { }
 
   async findOne(id: number): Promise<Channel> {
     const channel = await this.channelRepository.findOne({
@@ -38,10 +38,21 @@ export class ChannelsService {
     channelId: number,
     userId: number,
     companyId: number,
+    role?: string,
   ): Promise<Channel> {
     const channel = await this.findOne(channelId);
 
-    // Check company match
+    // Admin has access to everything
+    if (role === 'admin') {
+      return channel;
+    }
+
+    // Company manager has access to all channels in their company
+    if ((role === 'company_manager' || role === 'manager') && channel.companyId === companyId) {
+      return channel;
+    }
+
+    // Check company match for others
     if (channel.companyId !== companyId) {
       throw new ForbiddenException('Access denied to this channel');
     }
