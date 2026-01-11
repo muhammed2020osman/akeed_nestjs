@@ -140,6 +140,13 @@ export class MessagesService {
     // Check channel access
     await this.channelsService.checkChannelAccess(channelId, userId, companyId, role);
 
+    // Mark notifications as read for this channel
+    try {
+      await this.notificationsService.markChannelNotificationsAsRead(userId, channelId);
+    } catch (e) {
+      console.error('Error marking channel notifications as read:', e);
+    }
+
     const page = query.page || 1;
     const perPage = query.perPage || 50;
     const skip = (page - 1) * perPage;
@@ -747,5 +754,17 @@ export class MessagesService {
     } catch (e) { }
 
     return updatedPoll;
+  }
+
+  async markChannelAsRead(channelId: number, userId: number, companyId: number, role?: string): Promise<void> {
+    // Check channel access
+    await this.channelsService.checkChannelAccess(channelId, userId, companyId, role);
+
+    // Mark notifications as read for this channel
+    try {
+      await this.notificationsService.markChannelNotificationsAsRead(userId, channelId);
+    } catch (e) {
+      console.error('Error marking channel notifications as read:', e);
+    }
   }
 }

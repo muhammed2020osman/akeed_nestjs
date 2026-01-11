@@ -337,6 +337,13 @@ export class DirectMessagesService {
 
         message.isRead = true;
         await this.directMessageRepository.save(message);
+
+        // Mark associated notifications as read
+        try {
+            await this.notificationsService.markDirectMessageNotificationsAsRead(userId, message.fromUserId);
+        } catch (e) {
+            console.error('Error marking DM notifications as read:', e);
+        }
     }
 
     async remove(id: number, userId: number): Promise<void> {

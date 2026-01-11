@@ -368,4 +368,48 @@ export class NotificationsService {
             throw error;
         }
     }
+
+    /**
+     * Mark all notifications for a specific channel as read for a user
+     */
+    public async markChannelNotificationsAsRead(userId: number, channelId: number): Promise<void> {
+        try {
+            await this.dataSource.query(
+                `UPDATE notifications 
+                 SET read_at = ?, updated_at = ? 
+                 WHERE notifiable_id = ? 
+                 AND notifiable_type = ? 
+                 AND read_at IS NULL 
+                 AND (
+                    json_unquote(json_extract(data, "$.channel_id")) = ? 
+                    OR (type = 'App\\Notifications\\NewMessageNotification' AND json_unquote(json_extract(data, "$.channel_id")) = ?)
+                 )`,
+                [new Date(), new Date(), userId, 'App\\Models\\User', String(channelId), String(channelId)]
+            );
+            this.logger.log(`✅ Marked notifications as read for user ${userId} in channel ${channelId}`);
+        } catch (error) {
+            this.logger.error(`❌ Failed to mark channel notifications as read:`, error);
+        }
+    }
+
+    /**
+     * Mark direct message notifications from a specific sender as read for a user
+     */
+    public async markDirectMessageNotificationsAsRead(userId: number, senderId: number): Promise<void> {
+        try {
+            await this.dataSource.query(
+                `UPDATE notifications 
+                 SET read_at = ?, updated_at = ? 
+                 WHERE notifiable_id = ? 
+                 AND notifiable_type = ? 
+                 AND read_at IS NULL 
+                 AND json_unquote(json_extract(data, "$.channel_type")) = "direct_message"
+                 AND json_unquote(json_extract(data, "$.sender_id")) = ?`,
+                [new Date(), new Date(), userId, 'App\\Models\\User', String(senderId)]
+            );
+            this.logger.log(`✅ Marked DM notifications as read for user ${userId} from sender ${senderId}`);
+        } catch (error) {
+            this.logger.error(`❌ Failed to mark DM notifications as read:`, error);
+        }
+    }
 }

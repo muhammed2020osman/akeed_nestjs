@@ -4,6 +4,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Patch,
 } from '@nestjs/common';
 import { ChannelsService } from './channels.service';
 import { MessagesService } from '../messages/messages.service';
@@ -59,6 +60,23 @@ export class ChannelsController {
       success: true,
       message: 'Messages found successfully',
       payload: result,
+    };
+  }
+
+  @Patch(':id/mark-read')
+  async markAsRead(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.messagesService.markChannelAsRead(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+      user.role,
+    );
+    return {
+      success: true,
+      message: 'Channel notifications marked as read',
     };
   }
 }
