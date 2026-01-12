@@ -239,12 +239,21 @@ export class MessagesGateway
   }
 
   // Broadcast direct message deleted event
-  broadcastDirectMessageDeleted(messageId: number, fromUserId: number, toUserId: number) {
+  async broadcastDirectMessageDeleted(messageId: number, fromUserId: number, toUserId: number) {
     const roomName = this.getDMRoomName(fromUserId, toUserId);
     this.server.to(roomName).emit('dm.deleted', {
       message_id: messageId,
     });
     this.logger.log(`Broadcasted dm.deleted to room ${roomName}`);
+  }
+
+  async broadcastDirectMessagesRead(userId: number, fromUserId: number) {
+    const roomName = this.getDMRoomName(userId, fromUserId);
+    this.server.to(roomName).emit('direct-message.read', {
+      user_id: userId,
+      from_user_id: fromUserId,
+    });
+    this.logger.log(`Broadcasted direct-message.read to room ${roomName}`);
   }
 
   // Broadcast poll updated event
@@ -253,7 +262,6 @@ export class MessagesGateway
     this.server.to(channelName).emit('poll.updated', {
       poll: this.serializePoll(poll),
     });
-    this.logger.log(`Broadcasted poll.updated to channel ${channelId}`);
   }
 
   private extractToken(client: Socket): string | null {

@@ -127,6 +127,12 @@ export class DirectMessagesController {
         return null;
     }
 
+    @Patch('conversation/:userId/read')
+    async markConversationAsRead(@Req() req, @Param('userId') otherUserId: string) {
+        await this.directMessagesService.markConversationAsRead(req.user.id, +otherUserId);
+        return { success: true };
+    }
+
     @Get('unread-count')
     async getUnreadCount(@Req() req) {
         const workspaceId = this.getWorkspaceId(req, true) as number;

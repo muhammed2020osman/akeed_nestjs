@@ -346,6 +346,25 @@ export class DirectMessagesService {
         }
     }
 
+    async markConversationAsRead(userId: number, otherUserId: number): Promise<void> {
+        await this.directMessageRepository.update(
+            { toUserId: userId, fromUserId: otherUserId, isRead: false },
+            { isRead: true }
+        );
+
+        // Mark associated notifications as read
+        try {
+            await this.notificationsService.markDirectMessageNotificationsAsRead(userId, otherUserId);
+        } catch (e) {
+            console.error('Error marking DM conversation notifications as read:', e);
+        }
+
+        // Broadcast read event if gateway is available
+        if (this.messagesGateway) {
+            this.messagesGateway.broadcastDirectMessagesRead(userId, otherUserId);
+        }
+    }
+
     async remove(id: number, userId: number): Promise<void> {
         const message = await this.directMessageRepository.findOne({
             where: { id },
