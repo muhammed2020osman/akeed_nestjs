@@ -9,16 +9,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS - matching Laravel configuration
+  const allowedOrigins = process.env.CORS_ORIGIN.split(',');
+
   app.enableCors({
-    origin: [
-      process.env.APP_URL,
-      process.env.LARAVEL_APP_URL,
-      'https://tafaahum.vercel.app',
-      'https://school.gumra-ai.com',
-      'https://marketplace.zoom.us',
-      'https://souglink.com',
-      'https://www.souglink.com',
-    ].filter(Boolean),
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-Workspace-Id'],

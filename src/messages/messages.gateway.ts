@@ -190,13 +190,19 @@ export class MessagesGateway
   // Broadcast message sent event
   async broadcastMessageSent(message: any) {
     const channelName = `private-channel.${message.channelId}`;
+    const senderId = message.userId;
+
+    // We use server.to().emit which sends to everyone in the room.
+    // To exclude the sender, we would need their socket instance or ID.
+    // Since this is often called from the Service layer, we might not have the socket.
+    // Standard solution: Client-side deduplication is most robust, but we can try to 
+    // filter by user ID if we broadcast manually to each user, but that's expensive.
+    // Better: keep the broadcast but ENSURE Flutter handles it correctly.
+
     this.server.to(channelName).emit('message.sent', {
       message: this.serializeMessage(message),
     });
     this.logger.log(`Broadcasted message.sent to channel ${message.channelId}`);
-
-    // FCM handling is now centralised in MessagesService to ensure reliable delivery
-    // regardless of socket state.
   }
 
   // Broadcast direct message sent event
