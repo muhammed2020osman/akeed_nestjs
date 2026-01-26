@@ -25,6 +25,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import axios from 'axios';
 
 @Injectable()
 export class MessagesService {
@@ -297,57 +298,66 @@ export class MessagesService {
       newMessage,
     )) as Message;
 
-    // Handle File Uploads
+    // Handle File Uploads via internal API
     if (files && files.length > 0) {
-      console.log(`📂 [MessagesService] Processing ${files.length} files...`);
-      const uploadDir = path.resolve('../backend/public/uploads/attachments');
+      console.log(`📂 [MessagesService] Forwarding ${files.length} files to Laravel...`);
 
-      // Use explicit LARAVEL_APP_URL or fallback to the production domain as requested
       const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
-      const assetsUrl = `${baseUrl}/uploads/attachments`;
-
-      if (!fs.existsSync(uploadDir)) {
-        console.log(`📁 [MessagesService] Creating directory: ${uploadDir}`);
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
+      const internalToken = this.configService.get<string>('INTERNAL_API_TOKEN', 'temp_internal_token_123');
+      const uploadUrl = `${baseUrl}/api/internal/upload`;
 
       for (const file of files) {
-        // Generate random filename like Laravel: hashName
-        const randomName = crypto.randomBytes(20).toString('hex');
-        const extension = path.extname(file.originalname);
-        const filename = `${randomName}${extension}`;
-        const filePath = path.join(uploadDir, filename);
+        try {
+          const formData = new (require('form-data'))();
+          formData.append('file', file.buffer, {
+            filename: file.originalname,
+            contentType: file.mimetype,
+          });
+          formData.append('directory', 'attachments');
 
-        console.log(`💾 [MessagesService] Saving file: ${file.originalname} -> ${filename}`);
+          console.log(`🚀 [MessagesService] Uploading file to Laravel: ${file.originalname}`);
 
-        // Write file
-        fs.writeFileSync(filePath, file.buffer);
+          const response = await axios.post(uploadUrl, formData, {
+            headers: {
+              ...formData.getHeaders(),
+              'X-Internal-Token': internalToken,
+            },
+          });
 
-        // Store relative path without domain
-        const relativeUrl = `uploads/attachments/${filename}`;
-        console.log(`🔗 [MessagesService] Relative URL: ${relativeUrl}`);
+          if (response.data && response.data.success) {
+            const filename = response.data.filename;
+            const relativeUrl = `uploads/attachments/${filename}`;
+            console.log(`✅ [MessagesService] File uploaded successfully: ${relativeUrl}`);
 
-        // Create Attachment Entity
-        const attachment = this.attachmentRepository.create({
-          companyId,
-          messageId: savedMessage.id,
-          filename: filename,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          size: String(file.size),
-          url: relativeUrl,
-          createdBy: userId,
-        });
+            // Create Attachment Entity
+            const attachment = this.attachmentRepository.create({
+              companyId,
+              messageId: savedMessage.id,
+              filename: filename,
+              originalName: file.originalname,
+              mimeType: file.mimetype,
+              size: String(file.size),
+              url: relativeUrl,
+              createdBy: userId,
+            });
 
-        await this.attachmentRepository.save(attachment);
-        console.log(`✅ [MessagesService] Attachment saved to DB for message ${savedMessage.id}`);
+            await this.attachmentRepository.save(attachment);
 
-        // For backward compatibility / single attachment support
-        if (!savedMessage.attachmentUrl) {
-          savedMessage.attachmentUrl = relativeUrl;
-          savedMessage.attachmentType = file.mimetype;
-          savedMessage.attachmentName = file.originalname;
-          await this.messageRepository.save(savedMessage);
+            // For backward compatibility / single attachment support
+            if (!savedMessage.attachmentUrl) {
+              savedMessage.attachmentUrl = relativeUrl;
+              savedMessage.attachmentType = file.mimetype;
+              savedMessage.attachmentName = file.originalname;
+              await this.messageRepository.save(savedMessage);
+            }
+          } else {
+            console.error('❌ [MessagesService] Laravel upload failed:', response.data);
+          }
+        } catch (error) {
+          console.error('❌ [MessagesService] Error uploading file to Laravel:', error.message);
+          if (error.response) {
+            console.error('Response data:', error.response.data);
+          }
         }
       }
     }
