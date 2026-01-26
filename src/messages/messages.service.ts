@@ -19,7 +19,12 @@ import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
 import { PollVote } from './entities/poll-vote.entity';
 import { Topic } from './entities/topic.entity';
+import { Attachment } from './entities/attachment.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import * as fs from 'fs';
+import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class MessagesService {
@@ -32,9 +37,12 @@ export class MessagesService {
     private pollOptionRepository: Repository<PollOption>,
     @InjectRepository(PollVote)
     private pollVoteRepository: Repository<PollVote>,
+    @InjectRepository(Attachment)
+    private attachmentRepository: Repository<Attachment>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
     private notificationsService: NotificationsService,
+    private configService: ConfigService,
     @Optional()
     @Inject(forwardRef(() => MessagesGateway))
     private messagesGateway?: MessagesGateway,
@@ -96,6 +104,7 @@ export class MessagesService {
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
+      .leftJoinAndSelect('message.attachments', 'attachments')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.channelId) {
@@ -164,6 +173,7 @@ export class MessagesService {
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
+      .leftJoinAndSelect('message.attachments', 'attachments')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.topicId !== undefined) {
@@ -214,6 +224,7 @@ export class MessagesService {
         'poll.options',
         'poll.options.votes',
         'topic',
+        'attachments',
       ],
     });
 
@@ -233,6 +244,7 @@ export class MessagesService {
     userId: number,
     companyId: number,
     role?: string,
+    files?: any[],
   ): Promise<any> {
     // Check channel access
     const channel = await this.channelsService.checkChannelAccess(
@@ -250,12 +262,67 @@ export class MessagesService {
       companyId,
       channelId: createMessageDto.channelId,
       mentions: createMessageDto.mentionedUserIds || [],
-      topic: createMessageDto.topicId ? ({ id: createMessageDto.topicId } as Topic) : null,
+      topic: createMessageDto.topicId
+        ? ({ id: createMessageDto.topicId } as Topic)
+        : null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    const savedMessage = (await this.messageRepository.save(newMessage)) as Message;
+    const savedMessage = (await this.messageRepository.save(
+      newMessage,
+    )) as Message;
+
+    // Handle File Uploads
+    if (files && files.length > 0) {
+      const uploadDir = path.resolve('../backend/public/uploads/attachments');
+
+      // Use explicit LARAVEL_APP_URL or fallback to the production domain as requested
+      const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || 'https://slack.gumra-ai.com';
+      const assetsUrl = `${baseUrl}/uploads/attachments`;
+
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      for (const file of files) {
+        // Generate random filename like Laravel: hashName
+        const randomName = Array(40)
+          .fill(null)
+          .map(() => Math.round(Math.random() * 16).toString(16))
+          .join('');
+        const extension = path.extname(file.originalname);
+        const filename = `${randomName}${extension}`;
+        const filePath = path.join(uploadDir, filename);
+
+        // Write file
+        fs.writeFileSync(filePath, file.buffer);
+
+        const fileUrl = `${assetsUrl}/${filename}`;
+
+        // Create Attachment Entity
+        const attachment = this.attachmentRepository.create({
+          companyId,
+          messageId: savedMessage.id,
+          filename: filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: String(file.size),
+          url: fileUrl,
+          createdBy: userId,
+        });
+
+        await this.attachmentRepository.save(attachment);
+
+        // For backward compatibility / single attachment support
+        if (!savedMessage.attachmentUrl) {
+          savedMessage.attachmentUrl = fileUrl;
+          savedMessage.attachmentType = file.mimetype;
+          savedMessage.attachmentName = file.originalname;
+          await this.messageRepository.save(savedMessage);
+        }
+      }
+    }
 
     // Handle Poll creation if provided
     if (pollData) {
@@ -293,6 +360,7 @@ export class MessagesService {
         'poll.options',
         'poll.options.votes',
         'topic',
+        'attachments',
       ],
     });
 
@@ -404,6 +472,7 @@ export class MessagesService {
         'poll.options',
         'poll.options.votes',
         'topic',
+        'attachments',
       ],
     });
 
@@ -472,6 +541,7 @@ export class MessagesService {
         'poll.options',
         'poll.options.votes',
         'topic',
+        'attachments',
       ],
     });
 
@@ -581,6 +651,7 @@ export class MessagesService {
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
+      .leftJoinAndSelect('message.attachments', 'attachments')
       .andWhere((qb) => {
         const subQuery = qb
           .subQuery()
@@ -653,6 +724,7 @@ export class MessagesService {
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
+      .leftJoinAndSelect('message.attachments', 'attachments')
       .orderBy('message.createdAt', 'DESC');
 
     const [data, total] = await queryBuilder

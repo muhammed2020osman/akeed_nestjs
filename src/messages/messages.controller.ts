@@ -11,7 +11,10 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
@@ -101,15 +104,27 @@ export class MessagesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FilesInterceptor('attachments[]'))
   async store(
     @Body() createMessageDto: CreateMessageDto,
     @CurrentUser() user: any,
+    @UploadedFiles() files: any[],
   ) {
+    console.log('📝 [MessagesController] Store Request Received');
+    console.log('📦 [MessagesController] Body:', JSON.stringify(createMessageDto));
+    console.log('TBH [MessagesController] Files Count:', files ? files.length : 0);
+    if (files && files.length > 0) {
+      files.forEach((f, i) => {
+        console.log(`__ File ${i}: Field=${f.fieldname}, Name=${f.originalname}, Size=${f.size}, Mime=${f.mimetype}`);
+      });
+    }
+
     const message = await this.messagesService.create(
       createMessageDto,
       user.userId,
       user.companyId || user.company_id,
       user.role,
+      files,
     );
     return message;
   }

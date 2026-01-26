@@ -14,9 +14,8 @@ import { CreatePollDto } from './create-poll.dto';
 
 
 export class CreateMessageDto {
-  @ValidateIf((o) => !o.attachments || o.attachments.length === 0)
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   content?: string;
 
   @IsInt()

@@ -14,6 +14,7 @@ import { Channel } from '../../channels/entities/channel.entity';
 import { User } from '../../users/entities/user.entity';
 import { Poll } from './poll.entity';
 import { Topic } from './topic.entity';
+import { Attachment } from './attachment.entity';
 
 
 @Entity('messages')
@@ -112,6 +113,9 @@ export class Message {
   })
   @JoinColumn({ name: 'topic_id' })
   topic: Topic | null;
+
+  @OneToMany(() => Attachment, (attachment) => attachment.message)
+  attachments: Attachment[];
 }
 
 

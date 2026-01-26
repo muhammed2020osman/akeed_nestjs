@@ -9,6 +9,7 @@ import { DirectMessagesController } from './direct-messages.controller';
 import { MessagesGateway } from './messages.gateway';
 import { Message } from './entities/message.entity';
 import { DirectMessage } from './entities/direct-message.entity';
+import { Attachment } from './entities/attachment.entity';
 import { User } from '../users/entities/user.entity';
 import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
@@ -24,6 +25,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     TypeOrmModule.forFeature([
       Message,
       DirectMessage,
+      Attachment,
       User,
       Poll,
       PollOption,

@@ -345,6 +345,7 @@ export class MessagesGateway
       attachment_url: message.attachmentUrl,
       attachment_type: message.attachmentType,
       attachment_name: message.attachmentName,
+      attachments: message.attachments || [],
       mentions: message.mentions || [],
       edited_at: message.editedAt,
       created_at: message.createdAt,
