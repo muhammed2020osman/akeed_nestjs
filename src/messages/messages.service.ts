@@ -275,30 +275,32 @@ export class MessagesService {
 
     // Handle File Uploads
     if (files && files.length > 0) {
+      console.log(`📂 [MessagesService] Processing ${files.length} files...`);
       const uploadDir = path.resolve('../backend/public/uploads/attachments');
 
       // Use explicit LARAVEL_APP_URL or fallback to the production domain as requested
-      const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || 'https://slack.gumra-ai.com';
+      const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
       const assetsUrl = `${baseUrl}/uploads/attachments`;
 
       if (!fs.existsSync(uploadDir)) {
+        console.log(`📁 [MessagesService] Creating directory: ${uploadDir}`);
         fs.mkdirSync(uploadDir, { recursive: true });
       }
 
       for (const file of files) {
         // Generate random filename like Laravel: hashName
-        const randomName = Array(40)
-          .fill(null)
-          .map(() => Math.round(Math.random() * 16).toString(16))
-          .join('');
+        const randomName = crypto.randomBytes(20).toString('hex');
         const extension = path.extname(file.originalname);
         const filename = `${randomName}${extension}`;
         const filePath = path.join(uploadDir, filename);
+
+        console.log(`💾 [MessagesService] Saving file: ${file.originalname} -> ${filename}`);
 
         // Write file
         fs.writeFileSync(filePath, file.buffer);
 
         const fileUrl = `${assetsUrl}/${filename}`;
+        console.log(`🔗 [MessagesService] File URL: ${fileUrl}`);
 
         // Create Attachment Entity
         const attachment = this.attachmentRepository.create({
@@ -313,6 +315,7 @@ export class MessagesService {
         });
 
         await this.attachmentRepository.save(attachment);
+        console.log(`✅ [MessagesService] Attachment saved to DB for message ${savedMessage.id}`);
 
         // For backward compatibility / single attachment support
         if (!savedMessage.attachmentUrl) {

@@ -11,14 +11,14 @@ async function bootstrap() {
   // Enable CORS - matching Laravel configuration
   app.enableCors({
     origin: [
-      /^(http:\/\/|https:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/, // Allow any localhost/127.0.0.1 with any port
+      process.env.APP_URL,
+      process.env.LARAVEL_APP_URL,
       'https://tafaahum.vercel.app',
       'https://school.gumra-ai.com',
-      'https://slack.gumra-ai.com',
       'https://marketplace.zoom.us',
       'https://souglink.com',
       'https://www.souglink.com',
-    ],
+    ].filter(Boolean),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-Workspace-Id'],

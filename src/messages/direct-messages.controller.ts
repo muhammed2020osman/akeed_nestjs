@@ -182,9 +182,8 @@ export class DirectMessagesController {
 
         try {
             // Get Laravel API base URL from environment
-            // Laravel is hosted on a separate server: slack.gumra-ai.com
-            const laravelApiUrl = process.env.LARAVEL_API_URL || 'https://slack.gumra-ai.com/api';
-            console.log(`[Debug] Fetching members from: ${laravelApiUrl}/workspaces/${targetWorkspaceId}/members`);
+            const laravelApiUrl = process.env.LARAVEL_API_URL || `${process.env.LARAVEL_APP_URL}/api`;
+            console.log(`[Debug] Fetching members from: \${laravelApiUrl}/workspaces/\${targetWorkspaceId}/members`);
 
             const token = req.headers.authorization?.replace('Bearer ', '') || '';
 

@@ -110,12 +110,14 @@ export class MessagesController {
     @CurrentUser() user: any,
     @UploadedFiles() files: any[],
   ) {
-    console.log('📝 [MessagesController] Store Request Received');
-    console.log('📦 [MessagesController] Body:', JSON.stringify(createMessageDto));
-    console.log('TBH [MessagesController] Files Count:', files ? files.length : 0);
+    console.log('🚀 [MessagesController] POST /messages');
+    console.log('👤 [User]:', user.userId, user.role);
+    console.log('📦 [Body]:', JSON.stringify(createMessageDto));
+    console.log('📎 [Files Count]:', files ? files.length : 0);
+
     if (files && files.length > 0) {
       files.forEach((f, i) => {
-        console.log(`__ File ${i}: Field=${f.fieldname}, Name=${f.originalname}, Size=${f.size}, Mime=${f.mimetype}`);
+        console.log(`__ File ${i}: Field=${f.fieldname}, OriginalName=${f.originalname}, Size=${f.size}`);
       });
     }
 
