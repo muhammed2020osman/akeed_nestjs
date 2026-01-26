@@ -73,8 +73,26 @@ export class MessagesService {
   }
 
   private transformMessage(message: Message) {
+    const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
+
+    // Add domain to attachmentUrl if it's relative
+    let attachmentUrl = message.attachmentUrl;
+    if (attachmentUrl && !attachmentUrl.startsWith('http')) {
+      attachmentUrl = `${baseUrl}/${attachmentUrl.startsWith('/') ? attachmentUrl.slice(1) : attachmentUrl}`;
+    }
+
+    // Add domain to attachments array items
+    const attachments = (message.attachments || []).map(att => ({
+      ...att,
+      url: att.url && !att.url.startsWith('http')
+        ? `${baseUrl}/${att.url.startsWith('/') ? att.url.slice(1) : att.url}`
+        : att.url
+    }));
+
     return {
       ...message,
+      attachmentUrl,
+      attachments,
       is_urgent: !!message.isUrgent,
       replies_count:
         (message.replies?.length || 0) + (message.threadReplies?.length || 0),
@@ -256,6 +274,12 @@ export class MessagesService {
 
     const { poll: pollData, ...messageData } = createMessageDto;
 
+    // FINAL SOLUTION: QUAX CLEANING - Strip domain manually before entity creation
+    if (messageData.attachmentUrl && messageData.attachmentUrl.includes('uploads/')) {
+      const parts = messageData.attachmentUrl.split('uploads/');
+      messageData.attachmentUrl = 'uploads/' + parts[parts.length - 1];
+    }
+
     const newMessage = this.messageRepository.create({
       ...messageData,
       userId,
@@ -299,8 +323,9 @@ export class MessagesService {
         // Write file
         fs.writeFileSync(filePath, file.buffer);
 
-        const fileUrl = `${assetsUrl}/${filename}`;
-        console.log(`🔗 [MessagesService] File URL: ${fileUrl}`);
+        // Store relative path without domain
+        const relativeUrl = `uploads/attachments/${filename}`;
+        console.log(`🔗 [MessagesService] Relative URL: ${relativeUrl}`);
 
         // Create Attachment Entity
         const attachment = this.attachmentRepository.create({
@@ -310,7 +335,7 @@ export class MessagesService {
           originalName: file.originalname,
           mimeType: file.mimetype,
           size: String(file.size),
-          url: fileUrl,
+          url: relativeUrl,
           createdBy: userId,
         });
 
@@ -319,7 +344,7 @@ export class MessagesService {
 
         // For backward compatibility / single attachment support
         if (!savedMessage.attachmentUrl) {
-          savedMessage.attachmentUrl = fileUrl;
+          savedMessage.attachmentUrl = relativeUrl;
           savedMessage.attachmentType = file.mimetype;
           savedMessage.attachmentName = file.originalname;
           await this.messageRepository.save(savedMessage);

@@ -7,6 +7,8 @@ import {
     Index,
     CreateDateColumn,
     UpdateDateColumn,
+    BeforeInsert,
+    BeforeUpdate,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Conversation } from './conversation.entity';
@@ -81,4 +83,24 @@ export class DirectMessage {
     })
     @JoinColumn({ name: 'reply_to_id' })
     replyTo: DirectMessage | null;
+
+    @BeforeInsert()
+    @BeforeUpdate()
+    stripDomainFromUrl() {
+        // 1. Clean camelCase property
+        if (this.attachmentUrl && this.attachmentUrl.includes('uploads/')) {
+            const parts = this.attachmentUrl.split('uploads/');
+            this.attachmentUrl = 'uploads/' + parts[parts.length - 1];
+        }
+
+        // 2. Clean snake_case property (for spread objects)
+        if ((this as any).attachment_url && (this as any).attachment_url.includes('uploads/')) {
+            const parts = (this as any).attachment_url.split('uploads/');
+            (this as any).attachment_url = 'uploads/' + parts[parts.length - 1];
+
+            if (!this.attachmentUrl) {
+                this.attachmentUrl = (this as any).attachment_url;
+            }
+        }
+    }
 }

@@ -9,7 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS - matching Laravel configuration
-  const allowedOrigins = process.env.CORS_ORIGIN.split(',');
+  const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',');
 
   app.enableCors({
     origin: allowedOrigins,
@@ -49,7 +49,7 @@ async function bootstrap() {
   // Global Response Interceptor - matching Laravel response format
   app.useGlobalInterceptors(new ResponseInterceptor());
 
-  const port = process.env.PORT;
+  const port = parseInt(process.env.PORT || '3002', 10);
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
 }

@@ -257,6 +257,12 @@ export class DirectMessagesService {
             conversation = await this.conversationRepository.save(conversation);
         }
 
+        // FINAL SOLUTION: QUAX CLEANING - Strip domain manually for attachmentUrl
+        if (createDto.attachmentUrl && createDto.attachmentUrl.includes('uploads/')) {
+            const parts = createDto.attachmentUrl.split('uploads/');
+            createDto.attachmentUrl = 'uploads/' + parts[parts.length - 1];
+        }
+
         const newMessage = this.directMessageRepository.create({
             ...createDto,
             fromUserId: userId,

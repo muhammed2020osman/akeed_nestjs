@@ -9,6 +9,8 @@ import {
   Index,
   CreateDateColumn,
   UpdateDateColumn,
+  BeforeInsert,
+  BeforeUpdate,
 } from 'typeorm';
 import { Channel } from '../../channels/entities/channel.entity';
 import { User } from '../../users/entities/user.entity';
@@ -116,6 +118,27 @@ export class Message {
 
   @OneToMany(() => Attachment, (attachment) => attachment.message)
   attachments: Attachment[];
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  stripDomainFromUrl() {
+    // 1. Clean the primary property
+    if (this.attachmentUrl && this.attachmentUrl.includes('uploads/')) {
+      const parts = this.attachmentUrl.split('uploads/');
+      this.attachmentUrl = 'uploads/' + parts[parts.length - 1];
+    }
+
+    // 2. Extra safety: Clean any snake_case version of the same property if it exists on the instance
+    if ((this as any).attachment_url && (this as any).attachment_url.includes('uploads/')) {
+      const parts = (this as any).attachment_url.split('uploads/');
+      (this as any).attachment_url = 'uploads/' + parts[parts.length - 1];
+
+      // If primary property is empty, sync from the cleaned snake_case version
+      if (!this.attachmentUrl) {
+        this.attachmentUrl = (this as any).attachment_url;
+      }
+    }
+  }
 }
 
 

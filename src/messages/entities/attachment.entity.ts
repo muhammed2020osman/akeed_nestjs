@@ -7,6 +7,8 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
     Index,
+    BeforeInsert,
+    BeforeUpdate,
 } from 'typeorm';
 import { Message } from './message.entity';
 
@@ -52,4 +54,20 @@ export class Attachment {
     })
     @JoinColumn({ name: 'message_id' })
     message: Message;
+
+    @BeforeInsert()
+    @BeforeUpdate()
+    stripDomainFromUrl() {
+        // 1. Clean 'url' property
+        if (this.url && this.url.includes('uploads/')) {
+            const parts = this.url.split('uploads/');
+            this.url = 'uploads/' + parts[parts.length - 1];
+        }
+
+        // 2. Extra safety for any other potential URL fields
+        if ((this as any).attachment_url && (this as any).attachment_url.includes('uploads/')) {
+            const parts = (this as any).attachment_url.split('uploads/');
+            (this as any).attachment_url = 'uploads/' + parts[parts.length - 1];
+        }
+    }
 }
