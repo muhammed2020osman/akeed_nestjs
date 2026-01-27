@@ -155,6 +155,26 @@ export class DirectMessagesController {
         );
     }
 
+    @Post('conversations/get-or-create')
+    async getOrCreateConversation(
+        @Req() req,
+        @Body('otherUserId') otherUserId: number,
+        @Query('workspaceId') workspaceId?: string,
+    ) {
+        const targetWorkspaceId = workspaceId ? +workspaceId : this.getWorkspaceId(req, true) as number;
+        
+        if (!otherUserId) {
+            throw new BadRequestException('otherUserId is required');
+        }
+
+        return this.directMessagesService.getOrCreateConversation(
+            req.user.id,
+            otherUserId,
+            req.user.companyId,
+            targetWorkspaceId,
+        );
+    }
+
     @Get('workspace/:workspaceId/conversations')
     async getConversationsByWorkspace(
         @Req() req,

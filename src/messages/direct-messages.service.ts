@@ -509,4 +509,42 @@ export class DirectMessagesService {
             };
         });
     }
+
+    async getOrCreateConversation(
+        userId: number,
+        otherUserId: number,
+        companyId: number,
+        workspaceId: number,
+    ): Promise<Conversation> {
+        if (!workspaceId) {
+            throw new Error('Workspace ID is required for direct messages');
+        }
+
+        // Find or create conversation record
+        const u1 = Math.min(userId, otherUserId);
+        const u2 = Math.max(userId, otherUserId);
+
+        let conversation = await this.conversationRepository.findOne({
+            where: { workspaceId, user1Id: u1, user2Id: u2 },
+            relations: ['user1', 'user2', 'lastMessage'],
+        });
+
+        if (!conversation) {
+            conversation = this.conversationRepository.create({
+                companyId,
+                workspaceId,
+                user1Id: u1,
+                user2Id: u2,
+            });
+            conversation = await this.conversationRepository.save(conversation);
+            
+            // Load relations after save
+            conversation = await this.conversationRepository.findOne({
+                where: { id: conversation.id },
+                relations: ['user1', 'user2', 'lastMessage'],
+            }) as Conversation;
+        }
+
+        return conversation;
+    }
 }
