@@ -121,6 +121,21 @@ export class DirectMessagesController {
         );
     }
 
+    @Post('conversations/:id/messages')
+    async createInConversation(
+        @Req() req,
+        @Param('id') conversationId: string,
+        @Body() createDto: CreateDirectMessageDto
+    ) {
+        const workspaceId = this.getWorkspaceId(req, true) as number;
+        return this.directMessagesService.create(
+            { ...createDto, conversationId: +conversationId },
+            req.user.id,
+            req.user.companyId,
+            workspaceId,
+        );
+    }
+
     @Patch(':id/read')
     async markAsRead(@Req() req, @Param('id') id: string) {
         await this.directMessagesService.markAsRead(+id, req.user.id);
@@ -162,7 +177,7 @@ export class DirectMessagesController {
         @Query('workspaceId') workspaceId?: string,
     ) {
         const targetWorkspaceId = workspaceId ? +workspaceId : this.getWorkspaceId(req, true) as number;
-        
+
         if (!otherUserId) {
             throw new BadRequestException('otherUserId is required');
         }
