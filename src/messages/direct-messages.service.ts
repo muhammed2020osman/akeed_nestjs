@@ -240,7 +240,7 @@ export class DirectMessagesService {
         }
 
         // Find or create conversation
-        let conversation: Conversation;
+        let conversation: Conversation | null;
 
         if (createDto.conversationId) {
             conversation = await this.conversationRepository.findOne({
