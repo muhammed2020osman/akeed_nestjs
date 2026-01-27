@@ -515,7 +515,7 @@ export class DirectMessagesService {
         otherUserId: number,
         companyId: number,
         workspaceId: number,
-    ): Promise<Conversation> {
+    ): Promise<any> {
         if (!workspaceId) {
             throw new Error('Workspace ID is required for direct messages');
         }
@@ -537,7 +537,7 @@ export class DirectMessagesService {
                 user2Id: u2,
             });
             conversation = await this.conversationRepository.save(conversation);
-            
+
             // Load relations after save
             conversation = await this.conversationRepository.findOne({
                 where: { id: conversation.id },
@@ -545,6 +545,23 @@ export class DirectMessagesService {
             }) as Conversation;
         }
 
-        return conversation;
+        // Map to consistent format
+        const otherUser = conversation.user1Id === Number(userId) ? conversation.user2 : conversation.user1;
+
+        // Get unread count for this specific conversation
+        const unreadCount = await this.directMessageRepository.count({
+            where: {
+                toUserId: userId,
+                fromUserId: otherUser.id,
+                isRead: false,
+                conversationId: conversation.id
+            }
+        });
+
+        return {
+            ...conversation,
+            user: otherUser,
+            unread_count: unreadCount,
+        };
     }
 }
