@@ -562,6 +562,7 @@ export class DirectMessagesService {
             ...conversation,
             user: otherUser,
             unread_count: unreadCount,
+            is_direct_message: true,
         };
     }
 }
