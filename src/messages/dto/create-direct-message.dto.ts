@@ -27,6 +27,10 @@ export class CreateDirectMessageDto {
     attachmentName?: string;
 
     @IsOptional()
+    @IsNumber()
+    conversationId?: number;
+
+    @IsOptional()
     @IsBoolean()
     @Expose({ name: 'is_urgent' })
     isUrgent?: boolean;

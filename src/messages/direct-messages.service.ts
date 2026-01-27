@@ -240,21 +240,33 @@ export class DirectMessagesService {
         }
 
         // Find or create conversation
-        const u1 = Math.min(userId, createDto.toUserId);
-        const u2 = Math.max(userId, createDto.toUserId);
+        let conversation: Conversation;
 
-        let conversation = await this.conversationRepository.findOne({
-            where: { workspaceId, user1Id: u1, user2Id: u2 }
-        });
-
-        if (!conversation) {
-            conversation = this.conversationRepository.create({
-                companyId,
-                workspaceId,
-                user1Id: u1,
-                user2Id: u2,
+        if (createDto.conversationId) {
+            conversation = await this.conversationRepository.findOne({
+                where: { id: createDto.conversationId }
             });
-            conversation = await this.conversationRepository.save(conversation);
+
+            if (!conversation) {
+                throw new NotFoundException('Conversation not found');
+            }
+        } else {
+            const u1 = Math.min(userId, createDto.toUserId);
+            const u2 = Math.max(userId, createDto.toUserId);
+
+            conversation = await this.conversationRepository.findOne({
+                where: { workspaceId, user1Id: u1, user2Id: u2 }
+            });
+
+            if (!conversation) {
+                conversation = this.conversationRepository.create({
+                    companyId,
+                    workspaceId,
+                    user1Id: u1,
+                    user2Id: u2,
+                });
+                conversation = await this.conversationRepository.save(conversation);
+            }
         }
 
         // FINAL SOLUTION: QUAX CLEANING - Strip domain manually for attachmentUrl
