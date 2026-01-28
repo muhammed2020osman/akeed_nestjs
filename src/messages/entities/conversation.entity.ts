@@ -19,19 +19,19 @@ export class Conversation {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column({ name: 'company_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'company_id', type: 'int', unsigned: true })
     companyId: number;
 
-    @Column({ name: 'workspace_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'workspace_id', type: 'int', unsigned: true })
     workspaceId: number;
 
-    @Column({ name: 'user1_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'user1_id', type: 'int', unsigned: true })
     user1Id: number;
 
-    @Column({ name: 'user2_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'user2_id', type: 'int', unsigned: true })
     user2Id: number;
 
-    @Column({ name: 'last_message_id', type: 'bigint', unsigned: true, nullable: true })
+    @Column({ name: 'last_message_id', type: 'int', unsigned: true, nullable: true })
     lastMessageId: number | null;
 
     @Column({ name: 'last_message_text', type: 'text', nullable: true })

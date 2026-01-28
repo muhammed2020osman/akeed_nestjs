@@ -7,9 +7,8 @@ import {
     Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull } from 'typeorm';
+import { Repository, Not, IsNull } from 'typeorm';
 import { DirectMessage } from './entities/direct-message.entity';
-import { User } from '../users/entities/user.entity';
 import { Conversation } from './entities/conversation.entity';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { MessagesGateway } from './messages.gateway';
@@ -20,8 +19,6 @@ export class DirectMessagesService {
     constructor(
         @InjectRepository(DirectMessage)
         private directMessageRepository: Repository<DirectMessage>,
-        @InjectRepository(User)
-        private userRepository: Repository<User>,
         @InjectRepository(Conversation)
         private conversationRepository: Repository<Conversation>,
         private notificationsService: NotificationsService,
@@ -131,31 +128,73 @@ export class DirectMessagesService {
         page: number = 1,
         perPage: number = 50,
     ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+        // Convert userId to number to ensure type consistency
+        const userIdNum = Number(userId);
+        
+        console.log('🔍 getConversationById called with:', {
+            conversationId: id,
+            userId: userIdNum,
+            userIdType: typeof userIdNum,
+            workspaceId,
+            page,
+            perPage
+        });
+
         const whereCondition: any = { id };
         if (workspaceId !== null) {
             whereCondition.workspaceId = workspaceId;
         }
+
+        console.log('🔍 Searching for conversation with condition:', whereCondition);
 
         const conversation = await this.conversationRepository.findOne({
             where: whereCondition,
             relations: ['user1', 'user2']
         });
 
+        console.log('🔍 Conversation found:', conversation ? {
+            id: conversation.id,
+            workspaceId: conversation.workspaceId,
+            user1Id: conversation.user1Id,
+            user1IdType: typeof conversation.user1Id,
+            user2Id: conversation.user2Id,
+            user2IdType: typeof conversation.user2Id
+        } : 'NOT FOUND');
+
         if (!conversation) {
-            throw new NotFoundException('Conversation not found');
+            throw new NotFoundException(`Conversation with ID ${id} not found in workspace ${workspaceId}`);
         }
 
-        // Verify user is part of the conversation
-        if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
+        // Verify user is part of the conversation (with type-safe comparison)
+        if (conversation.user1Id !== userIdNum && conversation.user2Id !== userIdNum) {
+            console.log('❌ User not part of conversation:', {
+                userId: userIdNum,
+                userIdType: typeof userIdNum,
+                user1Id: conversation.user1Id,
+                user1IdType: typeof conversation.user1Id,
+                user2Id: conversation.user2Id,
+                user2IdType: typeof conversation.user2Id,
+                comparison1: conversation.user1Id !== userIdNum,
+                comparison2: conversation.user2Id !== userIdNum
+            });
             throw new ForbiddenException('You are not part of this conversation');
         }
 
-        // Verify workspaceId matches if provided
-        if (workspaceId !== null && conversation.workspaceId !== workspaceId) {
+        // Verify workspaceId matches if provided (with type-safe comparison)
+        if (workspaceId !== null && Number(conversation.workspaceId) !== Number(workspaceId)) {
+            console.log('❌ Workspace mismatch:', {
+                requestedWorkspaceId: workspaceId,
+                requestedWorkspaceIdType: typeof workspaceId,
+                conversationWorkspaceId: conversation.workspaceId,
+                conversationWorkspaceIdType: typeof conversation.workspaceId,
+                comparison: Number(conversation.workspaceId) !== Number(workspaceId)
+            });
             throw new ForbiddenException('Conversation does not belong to this workspace');
         }
 
         const skip = (page - 1) * perPage;
+
+        console.log('🔍 Fetching messages for conversationId:', id);
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: id },
@@ -163,6 +202,13 @@ export class DirectMessagesService {
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
+        });
+
+        console.log('✅ Found messages:', {
+            count: data.length,
+            total,
+            page,
+            perPage
         });
 
         const totalPages = Math.ceil(total / perPage);
@@ -239,47 +285,39 @@ export class DirectMessagesService {
             throw new Error('Workspace ID is required for direct messages');
         }
 
-        // Find or create conversation
-        let conversation: Conversation | null;
-
-        if (createDto.conversationId) {
-            conversation = await this.conversationRepository.findOne({
-                where: { id: createDto.conversationId }
-            });
-
-            if (!conversation) {
-                throw new NotFoundException('Conversation not found');
-            }
-        } else {
-            const u1 = Math.min(userId, createDto.toUserId);
-            const u2 = Math.max(userId, createDto.toUserId);
-
-            conversation = await this.conversationRepository.findOne({
-                where: { workspaceId, user1Id: u1, user2Id: u2 }
-            });
-
-            if (!conversation) {
-                conversation = this.conversationRepository.create({
-                    companyId,
-                    workspaceId,
-                    user1Id: u1,
-                    user2Id: u2,
-                });
-                conversation = await this.conversationRepository.save(conversation);
-            }
+        // STRICT LOGIC: Conversation ID is REQUIRED
+        if (!createDto.conversationId) {
+            throw new Error('Conversation ID is required. Please call get-or-create endpoint first.');
         }
 
-        // FINAL SOLUTION: QUAX CLEANING - Strip domain manually for attachmentUrl
-        if (createDto.attachmentUrl && createDto.attachmentUrl.includes('uploads/')) {
-            const parts = createDto.attachmentUrl.split('uploads/');
-            createDto.attachmentUrl = 'uploads/' + parts[parts.length - 1];
+        // Validate conversation exists and belongs to workspace
+        const conversation = await this.conversationRepository.findOne({
+            where: { id: createDto.conversationId, workspaceId }
+        });
+
+        if (!conversation) {
+            throw new NotFoundException('Conversation not found in this workspace');
         }
+
+        // Validate user is part of conversation
+        if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
+            throw new ForbiddenException('You are not part of this conversation');
+        }
+
+        // Determine recipient
+        const toUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
 
         const newMessage = this.directMessageRepository.create({
-            ...createDto,
+            content: createDto.content,
             fromUserId: userId,
+            toUserId: toUserId,
             companyId,
             conversationId: conversation.id,
+            replyToId: createDto.replyToId,
+            attachmentUrl: createDto.attachmentUrl,
+            attachmentType: createDto.attachmentType,
+            attachmentName: createDto.attachmentName,
+            isUrgent: createDto.isUrgent || false,
             createdAt: new Date(),
             updatedAt: new Date(),
         });
@@ -563,6 +601,57 @@ export class DirectMessagesService {
             user: otherUser,
             unread_count: unreadCount,
             is_direct_message: true,
+        };
+    }
+
+    async debugConversation(conversationId: number, userId: number): Promise<any> {
+        console.log('🔍 DEBUG: Fetching conversation', { conversationId, userId });
+
+        // Get conversation without any filters
+        const conversation = await this.conversationRepository.findOne({
+            where: { id: conversationId },
+            relations: ['user1', 'user2']
+        });
+
+        if (!conversation) {
+            return {
+                found: false,
+                conversationId,
+                message: 'Conversation not found in database'
+            };
+        }
+
+        // Get all conversations for this user
+        const userConversations = await this.conversationRepository.find({
+            where: [
+                { user1Id: userId },
+                { user2Id: userId }
+            ],
+            relations: ['user1', 'user2']
+        });
+
+        return {
+            found: true,
+            conversation: {
+                id: conversation.id,
+                workspaceId: conversation.workspaceId,
+                user1Id: conversation.user1Id,
+                user1Name: conversation.user1?.name,
+                user2Id: conversation.user2Id,
+                user2Name: conversation.user2?.name,
+            },
+            currentUser: {
+                id: userId,
+                isUser1: conversation.user1Id === userId,
+                isUser2: conversation.user2Id === userId,
+                isPartOfConversation: conversation.user1Id === userId || conversation.user2Id === userId
+            },
+            userConversations: userConversations.map(c => ({
+                id: c.id,
+                workspaceId: c.workspaceId,
+                user1Id: c.user1Id,
+                user2Id: c.user2Id,
+            }))
         };
     }
 }

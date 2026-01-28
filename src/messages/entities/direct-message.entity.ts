@@ -22,22 +22,22 @@ export class DirectMessage {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column({ name: 'company_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'company_id', type: 'int', unsigned: true })
     companyId: number;
 
-    @Column({ name: 'conversation_id', type: 'bigint', unsigned: true, nullable: true })
+    @Column({ name: 'conversation_id', type: 'int', unsigned: true, nullable: true })
     conversationId: number | null;
 
     @Column({ type: 'text' })
     content: string;
 
-    @Column({ name: 'from_user_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'from_user_id', type: 'int', unsigned: true })
     fromUserId: number;
 
-    @Column({ name: 'to_user_id', type: 'bigint', unsigned: true })
+    @Column({ name: 'to_user_id', type: 'int', unsigned: true })
     toUserId: number;
 
-    @Column({ name: 'reply_to_id', type: 'bigint', unsigned: true, nullable: true })
+    @Column({ name: 'reply_to_id', type: 'int', unsigned: true, nullable: true })
     replyToId: number | null;
 
     @Column({ name: 'attachment_url', type: 'text', nullable: true })

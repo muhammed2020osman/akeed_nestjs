@@ -51,8 +51,8 @@ export class DirectMessagesController {
     ) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.findAll(
-            req.user.id,
-            req.user.companyId,
+            +req.user.id,
+            +req.user.companyId,
             workspaceId,
             +page,
             +perPage,
@@ -68,9 +68,9 @@ export class DirectMessagesController {
     ) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.getConversation(
-            req.user.id,
+            +req.user.id,
             +otherUserId,
-            req.user.companyId,
+            +req.user.companyId,
             workspaceId,
             +page,
             +perPage,
@@ -84,14 +84,49 @@ export class DirectMessagesController {
         @Query('page') page: number = 1,
         @Query('per_page') perPage: number = 50,
     ) {
+        console.log('📡 API Request: GET /conversations/:id', {
+            conversationId: id,
+            userId: req.user?.id,
+            userName: req.user?.name,
+            page,
+            perPage,
+            query: req.query,
+            headers: {
+                workspaceId: req.headers?.['x-workspace-id'],
+            }
+        });
+
         const workspaceId = this.getWorkspaceId(req, false);
-        return this.directMessagesService.getConversationById(
-            +id,
-            req.user.id,
-            workspaceId || null,
-            +page,
-            +perPage,
-        );
+        
+        console.log('📡 Resolved workspaceId:', workspaceId);
+
+        try {
+            return await this.directMessagesService.getConversationById(
+                +id,
+                +req.user.id,  // Convert to number
+                workspaceId || null,
+                +page,
+                +perPage,
+            );
+        } catch (error) {
+            console.error('❌ Error in getConversationById:', {
+                conversationId: id,
+                userId: req.user.id,
+                userIdType: typeof req.user.id,
+                workspaceId,
+                error: error.message,
+                stack: error.stack
+            });
+            throw error;
+        }
+    }
+
+    @Get('conversations/:id/debug')
+    async debugConversation(
+        @Req() req,
+        @Param('id') id: string,
+    ) {
+        return this.directMessagesService.debugConversation(+id, +req.user.id);
     }
 
     @Get('self')
@@ -102,8 +137,8 @@ export class DirectMessagesController {
     ) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.getSelfConversation(
-            req.user.id,
-            req.user.companyId,
+            +req.user.id,
+            +req.user.companyId,
             workspaceId,
             +page,
             +perPage,
@@ -112,11 +147,19 @@ export class DirectMessagesController {
 
     @Post()
     async create(@Req() req, @Body() createDto: CreateDirectMessageDto) {
+        // DEPRECATED: This endpoint requires conversationId
+        // Use POST /conversations/:id/messages instead
+        if (!createDto.conversationId) {
+            throw new BadRequestException(
+                'Conversation ID is required. Please use POST /direct-messages/conversations/get-or-create first, then use POST /direct-messages/conversations/:id/messages'
+            );
+        }
+        
         const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.create(
             createDto,
-            req.user.id,
-            req.user.companyId,
+            +req.user.id,
+            +req.user.companyId,
             workspaceId,
         );
     }
@@ -128,23 +171,30 @@ export class DirectMessagesController {
         @Body() createDto: CreateDirectMessageDto
     ) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
+        
+        // Ensure conversationId is set in DTO
+        const dtoWithConversation = {
+            ...createDto,
+            conversationId: +conversationId,
+        };
+        
         return this.directMessagesService.create(
-            { ...createDto, conversationId: +conversationId },
-            req.user.id,
-            req.user.companyId,
+            dtoWithConversation,
+            +req.user.id,
+            +req.user.companyId,
             workspaceId,
         );
     }
 
     @Patch(':id/read')
     async markAsRead(@Req() req, @Param('id') id: string) {
-        await this.directMessagesService.markAsRead(+id, req.user.id);
+        await this.directMessagesService.markAsRead(+id, +req.user.id);
         return null;
     }
 
     @Patch('conversation/:userId/read')
     async markConversationAsRead(@Req() req, @Param('userId') otherUserId: string) {
-        await this.directMessagesService.markConversationAsRead(req.user.id, +otherUserId);
+        await this.directMessagesService.markConversationAsRead(+req.user.id, +otherUserId);
         return { success: true };
     }
 
@@ -152,8 +202,8 @@ export class DirectMessagesController {
     async getUnreadCount(@Req() req) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
         const count = await this.directMessagesService.getUnreadCount(
-            req.user.id,
-            req.user.companyId,
+            +req.user.id,
+            +req.user.companyId,
             workspaceId,
         );
         return count;
@@ -163,8 +213,8 @@ export class DirectMessagesController {
     async getConversations(@Req() req, @Query('limit') limit?: number) {
         const workspaceId = this.getWorkspaceId(req, false);
         return this.directMessagesService.getConversations(
-            req.user.id,
-            req.user.companyId,
+            +req.user.id,
+            +req.user.companyId,
             workspaceId,
             limit ? +limit : 50,
         );
@@ -183,9 +233,9 @@ export class DirectMessagesController {
         }
 
         return this.directMessagesService.getOrCreateConversation(
-            req.user.id,
-            otherUserId,
-            req.user.companyId,
+            +req.user.id,
+            +otherUserId,
+            +req.user.companyId,
             targetWorkspaceId,
         );
     }
@@ -197,8 +247,8 @@ export class DirectMessagesController {
         @Query('limit') limit?: number,
     ) {
         return this.directMessagesService.getConversations(
-            req.user.id,
-            req.user.companyId,
+            +req.user.id,
+            +req.user.companyId,
             +workspaceId,
             limit ? +limit : 50,
         );
@@ -276,7 +326,7 @@ export class DirectMessagesController {
 
     @Delete(':id')
     async remove(@Req() req, @Param('id') id: string) {
-        await this.directMessagesService.remove(+id, req.user.id);
+        await this.directMessagesService.remove(+id, +req.user.id);
         return null;
     }
 }
