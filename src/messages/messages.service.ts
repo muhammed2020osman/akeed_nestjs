@@ -265,6 +265,22 @@ export class MessagesService {
     role?: string,
     files?: any[],
   ): Promise<any> {
+    // ✅ IDEMPOTENCY CHECK: If localId is provided, check for existing message
+    if (createMessageDto.localId) {
+      const existingMessage = await this.messageRepository.findOne({
+        where: {
+          localId: createMessageDto.localId,
+          userId: userId,
+        },
+        relations: ['user', 'channel', 'replyTo', 'topic', 'attachments', 'poll'],
+      });
+
+      if (existingMessage) {
+        console.log(`🔄 [MessagesService] Idempotent request detected: localId=${createMessageDto.localId}, returning existing message id=${existingMessage.id}`);
+        return existingMessage;
+      }
+    }
+
     // Check channel access
     const channel = await this.channelsService.checkChannelAccess(
       createMessageDto.channelId,

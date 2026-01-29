@@ -23,6 +23,7 @@ import { Attachment } from './attachment.entity';
 @Index('idx_messages_company', ['companyId'])
 @Index('channel_id', ['channelId'])
 @Index('user_id', ['userId'])
+@Index('idx_messages_local_id_user', ['localId', 'userId'], { unique: true })
 export class Message {
   @PrimaryGeneratedColumn()
   id: number;
@@ -38,6 +39,9 @@ export class Message {
 
   @Column({ name: 'user_id', type: 'bigint', unsigned: true })
   userId: number;
+
+  @Column({ name: 'local_id', type: 'varchar', length: 36, nullable: true })
+  localId: string | null;
 
   @Column({ name: 'reply_to_id', type: 'bigint', unsigned: true, nullable: true })
   replyToId: number | null;
