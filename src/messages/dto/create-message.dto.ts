@@ -24,6 +24,12 @@ export class CreateMessageDto {
   channelId: number;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(36)
+  @Expose({ name: 'local_id' })
+  localId?: string;
+
+  @IsOptional()
   @IsInt()
   @Expose({ name: 'reply_to_id' })
   replyToId?: number;

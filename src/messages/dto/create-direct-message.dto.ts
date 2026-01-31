@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsArray, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsArray, IsBoolean, MaxLength } from 'class-validator';
 import { Expose } from 'class-transformer';
 
 export class CreateDirectMessageDto {
@@ -9,6 +9,12 @@ export class CreateDirectMessageDto {
     @IsNotEmpty()
     @IsString()
     content: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(36)
+    @Expose({ name: 'local_id' })
+    localId?: string;
 
     @IsOptional()
     @IsNumber()

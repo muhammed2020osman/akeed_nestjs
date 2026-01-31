@@ -18,6 +18,7 @@ import { Conversation } from './conversation.entity';
 @Index('from_user_id', ['fromUserId'])
 @Index('to_user_id', ['toUserId'])
 @Index('idx_direct_messages_conversation', ['conversationId'])
+@Index('idx_direct_messages_local_id_user', ['localId', 'fromUserId'], { unique: true })
 export class DirectMessage {
     @PrimaryGeneratedColumn()
     id: number;
@@ -36,6 +37,9 @@ export class DirectMessage {
 
     @Column({ name: 'to_user_id', type: 'int', unsigned: true })
     toUserId: number;
+
+    @Column({ name: 'local_id', type: 'varchar', length: 36, nullable: true })
+    localId: string | null;
 
     @Column({ name: 'reply_to_id', type: 'int', unsigned: true, nullable: true })
     replyToId: number | null;

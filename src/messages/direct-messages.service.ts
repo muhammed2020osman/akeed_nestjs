@@ -290,6 +290,22 @@ export class DirectMessagesService {
             throw new Error('Conversation ID is required. Please call get-or-create endpoint first.');
         }
 
+        // ✅ IDEMPOTENCY CHECK: If localId is provided, check for existing message
+        if (createDto.localId) {
+            const existingMessage = await this.directMessageRepository.findOne({
+                where: {
+                    localId: createDto.localId,
+                    fromUserId: userId,
+                },
+                relations: ['fromUser', 'toUser', 'replyTo'],
+            });
+
+            if (existingMessage) {
+                console.log(`🔄 [DirectMessagesService] Idempotent request detected: localId=${createDto.localId}, returning existing message id=${existingMessage.id}`);
+                return existingMessage;
+            }
+        }
+
         // Validate conversation exists and belongs to workspace
         const conversation = await this.conversationRepository.findOne({
             where: { id: createDto.conversationId, workspaceId }
@@ -313,6 +329,7 @@ export class DirectMessagesService {
             toUserId: toUserId,
             companyId,
             conversationId: conversation.id,
+            localId: createDto.localId, // Store localId for idempotency
             replyToId: createDto.replyToId,
             attachmentUrl: createDto.attachmentUrl,
             attachmentType: createDto.attachmentType,
