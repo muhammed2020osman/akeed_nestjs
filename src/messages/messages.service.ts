@@ -20,6 +20,8 @@ import { PollOption } from './entities/poll-option.entity';
 import { PollVote } from './entities/poll-vote.entity';
 import { Topic } from './entities/topic.entity';
 import { Attachment } from './entities/attachment.entity';
+import { MessageReaction } from './entities/message-reaction.entity';
+import { MessageAction } from './entities/message-action.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -40,6 +42,10 @@ export class MessagesService {
     private pollVoteRepository: Repository<PollVote>,
     @InjectRepository(Attachment)
     private attachmentRepository: Repository<Attachment>,
+    @InjectRepository(MessageReaction)
+    private reactionRepository: Repository<MessageReaction>,
+    @InjectRepository(MessageAction)
+    private actionRepository: Repository<MessageAction>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
     private notificationsService: NotificationsService,
@@ -98,7 +104,25 @@ export class MessagesService {
       replies_count:
         (message.replies?.length || 0) + (message.threadReplies?.length || 0),
       poll: this.transformPoll(message.poll),
+      reactions: this.transformReactions(message.reactions || []),
+      is_pinned: (message.actions || []).some(a => a.actionType === 'pin' && a.isActive),
+      is_starred: (message.actions || []).some(a => a.actionType === 'favorite' && a.isActive),
     };
+  }
+
+  private transformReactions(reactions: MessageReaction[]) {
+    const grouped = new Map<string, number[]>();
+    reactions.forEach(r => {
+      if (!grouped.has(r.emoji)) {
+        grouped.set(r.emoji, []);
+      }
+      grouped.get(r.emoji)!.push(Number(r.userId));
+    });
+
+    return Array.from(grouped.entries()).map(([emoji, users]) => ({
+      emoji,
+      users,
+    }));
   }
 
   async findAll(
@@ -124,6 +148,8 @@ export class MessagesService {
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
       .leftJoinAndSelect('message.attachments', 'attachments')
+      .leftJoinAndSelect('message.reactions', 'reactions')
+      .leftJoinAndSelect('message.actions', 'actions')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.channelId) {
@@ -193,6 +219,8 @@ export class MessagesService {
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
       .leftJoinAndSelect('message.attachments', 'attachments')
+      .leftJoinAndSelect('message.reactions', 'reactions')
+      .leftJoinAndSelect('message.actions', 'actions')
       .orderBy('message.createdAt', 'DESC');
 
     if (query.topicId !== undefined) {
@@ -244,6 +272,8 @@ export class MessagesService {
         'poll.options.votes',
         'topic',
         'attachments',
+        'reactions',
+        'actions',
       ],
     });
 
@@ -415,6 +445,8 @@ export class MessagesService {
         'poll.options.votes',
         'topic',
         'attachments',
+        'reactions',
+        'actions',
       ],
     });
 
@@ -527,6 +559,8 @@ export class MessagesService {
         'poll.options.votes',
         'topic',
         'attachments',
+        'reactions',
+        'actions',
       ],
     });
 
@@ -666,6 +700,8 @@ export class MessagesService {
         'poll.options',
         'poll.options.votes',
         'topic',
+        'reactions',
+        'actions',
       ],
       order: { createdAt: 'ASC' },
     });
@@ -706,6 +742,8 @@ export class MessagesService {
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
       .leftJoinAndSelect('message.attachments', 'attachments')
+      .leftJoinAndSelect('message.reactions', 'reactions')
+      .leftJoinAndSelect('message.actions', 'actions')
       .andWhere((qb) => {
         const subQuery = qb
           .subQuery()
@@ -779,6 +817,8 @@ export class MessagesService {
       .leftJoinAndSelect('options.votes', 'votes')
       .leftJoinAndSelect('message.topic', 'topic')
       .leftJoinAndSelect('message.attachments', 'attachments')
+      .leftJoinAndSelect('message.reactions', 'reactions')
+      .leftJoinAndSelect('message.actions', 'actions')
       .orderBy('message.createdAt', 'DESC');
 
     const [data, total] = await queryBuilder
@@ -892,5 +932,98 @@ export class MessagesService {
     } catch (e) {
       console.error('Error marking channel notifications as read:', e);
     }
+  }
+
+  async toggleReaction(messageId: number, emoji: string, userId: number, companyId: number): Promise<any> {
+    const existing = await this.reactionRepository.findOne({
+      where: { messageId, userId, emoji },
+    });
+
+    if (existing) {
+      await this.reactionRepository.remove(existing);
+    } else {
+      const reaction = this.reactionRepository.create({
+        messageId,
+        userId,
+        companyId,
+        emoji,
+      });
+      await this.reactionRepository.save(reaction);
+    }
+
+    const updatedMessage = await this.findOne(messageId, userId, companyId);
+
+    // Broadcast
+    if (this.messagesGateway) {
+      this.messagesGateway.broadcastMessageUpdated(updatedMessage);
+    }
+
+    return updatedMessage;
+  }
+
+  async togglePin(messageId: number, userId: number, companyId: number): Promise<any> {
+    const existing = await this.actionRepository.findOne({
+      where: { messageId, actionType: 'pin' },
+    });
+
+    if (existing) {
+      existing.isActive = !existing.isActive;
+      await this.actionRepository.save(existing);
+    } else {
+      const action = this.actionRepository.create({
+        messageId,
+        userId,
+        actionType: 'pin',
+        isActive: true,
+      });
+      await this.actionRepository.save(action);
+    }
+
+    const updatedMessage = await this.findOne(messageId, userId, companyId);
+
+    // Broadcast
+    if (this.messagesGateway) {
+      this.messagesGateway.broadcastMessageUpdated(updatedMessage);
+    }
+
+    return updatedMessage;
+  }
+
+  async toggleFavorite(messageId: number, userId: number, companyId: number): Promise<any> {
+    const existing = await this.actionRepository.findOne({
+      where: { messageId, userId, actionType: 'favorite' },
+    });
+
+    if (existing) {
+      existing.isActive = !existing.isActive;
+      await this.actionRepository.save(existing);
+    } else {
+      const action = this.actionRepository.create({
+        messageId,
+        userId,
+        actionType: 'favorite',
+        isActive: true,
+      });
+      await this.actionRepository.save(action);
+    }
+
+    return await this.findOne(messageId, userId, companyId);
+  }
+
+  async forwardMessage(messageId: number, targetChannelId: number, userId: number, companyId: number, role?: string): Promise<any> {
+    const sourceMessage = await this.findOne(messageId, userId, companyId);
+
+    // Check target channel access
+    await this.channelsService.checkChannelAccess(targetChannelId, userId, companyId, role);
+
+    const createDto: CreateMessageDto = {
+      channelId: targetChannelId,
+      content: sourceMessage.content,
+      attachmentUrl: sourceMessage.attachmentUrl,
+      attachmentType: sourceMessage.attachmentType,
+      attachmentName: sourceMessage.attachmentName,
+    };
+
+    return await this.create(createDto, userId, companyId, role);
   }
 }

@@ -17,6 +17,8 @@ import { User } from '../../users/entities/user.entity';
 import { Poll } from './poll.entity';
 import { Topic } from './topic.entity';
 import { Attachment } from './attachment.entity';
+import { MessageReaction } from './message-reaction.entity';
+import { MessageAction } from './message-action.entity';
 
 
 @Entity('messages')
@@ -122,6 +124,12 @@ export class Message {
 
   @OneToMany(() => Attachment, (attachment) => attachment.message)
   attachments: Attachment[];
+
+  @OneToMany(() => MessageReaction, (reaction) => reaction.message)
+  reactions: MessageReaction[];
+
+  @OneToMany(() => MessageAction, (action) => action.message)
+  actions: MessageAction[];
 
   @BeforeInsert()
   @BeforeUpdate()

@@ -381,7 +381,29 @@ export class MessagesGateway
         : null,
       is_urgent: !!message.isUrgent,
       poll: message.poll && message.poll.length > 0 ? this.serializePoll(message.poll[0]) : null,
+      reactions: message.reactions ? this.serializeReactions(message.reactions) : [],
+      is_pinned: message.is_pinned || false,
+      is_starred: message.is_starred || false,
+      replies_count: message.replies_count || 0,
     };
+  }
+
+  private serializeReactions(reactions: any[]): any[] {
+    if (!reactions || reactions.length === 0) return [];
+
+    const grouped = new Map<string, number[]>();
+    reactions.forEach(r => {
+      const emoji = r.emoji || r.icon;
+      if (!grouped.has(emoji)) {
+        grouped.set(emoji, []);
+      }
+      grouped.get(emoji)!.push(Number(r.userId));
+    });
+
+    return Array.from(grouped.entries()).map(([emoji, users]) => ({
+      emoji,
+      users,
+    }));
   }
 
   private serializePoll(poll: any): any {

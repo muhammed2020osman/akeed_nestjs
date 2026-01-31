@@ -187,6 +187,44 @@ export class MessagesController {
     };
   }
 
+  @Post(':id/reaction')
+  async toggleReaction(
+    @Param('id') id: string,
+    @Body('emoji') emoji: string,
+    @CurrentUser() user: any,
+  ) {
+    return await this.messagesService.toggleReaction(
+      parseInt(id),
+      emoji,
+      user.userId,
+      user.companyId || user.company_id,
+    );
+  }
+
+  @Post(':id/pin')
+  async togglePin(@Param('id') id: string, @CurrentUser() user: any) {
+    return await this.messagesService.togglePin(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
+  }
+
+  @Post(':id/forward')
+  async forwardMessage(
+    @Param('id') id: string,
+    @Body('channelId') targetChannelId: number,
+    @CurrentUser() user: any,
+  ) {
+    return await this.messagesService.forwardMessage(
+      parseInt(id),
+      targetChannelId,
+      user.userId,
+      user.companyId || user.company_id,
+      user.role,
+    );
+  }
+
   @Get(':id/replies')
   async getReplies(@Param('id') id: string, @CurrentUser() user: any) {
     const result = await this.messagesService.getReplies(
@@ -203,14 +241,15 @@ export class MessagesController {
 
   @Post(':id/favorite')
   async toggleFavorite(@Param('id') id: string, @CurrentUser() user: any) {
-    // TODO: Implement favorite toggle
+    const message = await this.messagesService.toggleFavorite(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
     return {
       success: true,
-      message: 'Message added to favorites',
-      payload: {
-        is_starred: true,
-        message: 'Message added to favorites',
-      },
+      message: 'Favorite status toggled successfully',
+      payload: message,
     };
   }
 

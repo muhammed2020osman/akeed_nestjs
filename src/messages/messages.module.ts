@@ -10,6 +10,8 @@ import { MessagesGateway } from './messages.gateway';
 import { Message } from './entities/message.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { Attachment } from './entities/attachment.entity';
+import { MessageReaction } from './entities/message-reaction.entity';
+import { MessageAction } from './entities/message-action.entity';
 import { User } from '../users/entities/user.entity';
 import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
@@ -32,6 +34,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       PollVote,
       Topic,
       Conversation,
+      MessageReaction,
+      MessageAction,
     ]),
     forwardRef(() => ChannelsModule),
     JwtModule,

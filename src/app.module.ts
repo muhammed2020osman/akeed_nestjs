@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -9,6 +9,7 @@ import { ChannelsModule } from './channels/channels.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { FCMModule } from './fcm/fcm.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { SaveApiResponsesMiddleware } from './common/middleware/save-api-responses.middleware';
 
 @Module({
   imports: [
@@ -28,8 +29,11 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(LoggerMiddleware)
-      .forRoutes('*');
+    // Apply LoggerMiddleware to all routes
+    consumer.apply(LoggerMiddleware).forRoutes('*');
+
+    // Apply SaveApiResponsesMiddleware to all routes
+    // It will internally check for /api/* paths and development environment
+    consumer.apply(SaveApiResponsesMiddleware).forRoutes('*');
   }
 }
