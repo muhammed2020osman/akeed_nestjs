@@ -58,37 +58,25 @@ export class MessagesController {
     @Query() query: MessageQueryDto,
     @CurrentUser() user: any,
   ) {
-    // TODO: Implement starred messages
+    const result = await this.messagesService.getStarredMessages(
+      user.userId,
+      user.companyId || user.company_id,
+      query,
+    );
     return {
       success: true,
       message: 'Starred messages retrieved successfully',
-      payload: {
-        data: [],
-        meta: {
-          current_page: 1,
-          per_page: query.perPage || 20,
-          total: 0,
-          last_page: 1,
-          from: 0,
-          to: 0,
-        },
-        links: {
-          first: null,
-          last: null,
-          prev: null,
-          next: null,
-        },
-      },
+      payload: result,
     };
   }
 
   @Get('starred/count')
   async getStarredCount(@CurrentUser() user: any) {
-    // TODO: Implement starred count
+    const count = await this.messagesService.getStarredCount(user.userId);
     return {
       success: true,
       message: 'Starred messages count retrieved successfully',
-      payload: { count: 0 },
+      payload: { count },
     };
   }
 
@@ -214,15 +202,37 @@ export class MessagesController {
   async forwardMessage(
     @Param('id') id: string,
     @Body('channelId') targetChannelId: number,
+    @Body('isSourceDm') isSourceDm: boolean,
     @CurrentUser() user: any,
   ) {
-    return await this.messagesService.forwardMessage(
-      parseInt(id),
-      targetChannelId,
-      user.userId,
-      user.companyId || user.company_id,
-      user.role,
-    );
+    console.log(`[Controller] Forward request: messageId=${id}, targetChannelId=${targetChannelId}, isSourceDm=${isSourceDm}`);
+    try {
+      const result = await this.messagesService.forwardMessage(
+        parseInt(id),
+        targetChannelId,
+        user.userId,
+        user.companyId || user.company_id,
+        user.role,
+        isSourceDm || false,
+      );
+      console.log(`[Controller] Forward success:`, result);
+
+      // If the service already returned a standard response, pass it through
+      if (result && result.status !== undefined && result.payload !== undefined) {
+        return result;
+      }
+
+      // Otherwise wrap in standard response format
+      return {
+        status: true,
+        code: 201,
+        message: 'Message forwarded successfully',
+        payload: result,
+      };
+    } catch (error) {
+      console.error(`[Controller] Forward error:`, error);
+      throw error;
+    }
   }
 
   @Get(':id/replies')
@@ -255,11 +265,15 @@ export class MessagesController {
 
   @Get(':id/starred')
   async checkStarred(@Param('id') id: string, @CurrentUser() user: any) {
-    // TODO: Implement check starred
+    const message = await this.messagesService.findOne(
+      parseInt(id),
+      user.userId,
+      user.companyId || user.company_id,
+    );
     return {
       success: true,
       message: 'Starred status retrieved successfully',
-      payload: { is_starred: false },
+      payload: { is_starred: message.is_starred || false },
     };
   }
 

@@ -10,6 +10,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
+import { DirectMessage } from './entities/direct-message.entity';
+import { Conversation } from './entities/conversation.entity';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { MessageQueryDto } from './dto/message-query.dto';
@@ -46,6 +48,10 @@ export class MessagesService {
     private reactionRepository: Repository<MessageReaction>,
     @InjectRepository(MessageAction)
     private actionRepository: Repository<MessageAction>,
+    @InjectRepository(DirectMessage)
+    private directMessageRepository: Repository<DirectMessage>,
+    @InjectRepository(Conversation)
+    private conversationRepository: Repository<Conversation>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
     private notificationsService: NotificationsService,
@@ -79,7 +85,7 @@ export class MessagesService {
     };
   }
 
-  private transformMessage(message: Message) {
+  private transformMessage(message: Message, currentUserId?: number) {
     const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
 
     // Add domain to attachmentUrl if it's relative
@@ -106,7 +112,9 @@ export class MessagesService {
       poll: this.transformPoll(message.poll),
       reactions: this.transformReactions(message.reactions || []),
       is_pinned: (message.actions || []).some(a => a.actionType === 'pin' && a.isActive),
-      is_starred: (message.actions || []).some(a => a.actionType === 'favorite' && a.isActive),
+      is_starred: currentUserId
+        ? (message.actions || []).some(a => a.userId === currentUserId && a.actionType === 'favorite' && a.isActive)
+        : (message.actions || []).some(a => a.actionType === 'favorite' && a.isActive),
     };
   }
 
@@ -241,7 +249,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data: data.map((message) => this.transformMessage(message)),
+      data: data.map((message) => this.transformMessage(message, userId)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -260,6 +268,7 @@ export class MessagesService {
   }
 
   async findOne(id: number, userId: number, companyId: number): Promise<any> {
+    console.log(`[findOne] Looking for message id=${id}, userId=${userId}, companyId=${companyId}`);
     const message = await this.messageRepository.findOne({
       where: { id },
       relations: [
@@ -278,14 +287,17 @@ export class MessagesService {
     });
 
     if (!message) {
+      console.log(`[findOne] Message not found: id=${id}`);
       throw new NotFoundException('Message not found');
     }
 
+    console.log(`[findOne] Found message: id=${message.id}, companyId=${message.companyId}`);
     if (message.companyId !== companyId) {
+      console.log(`[findOne] Company mismatch: message.companyId=${message.companyId}, requested companyId=${companyId}`);
       throw new ForbiddenException('Access denied to this message');
     }
 
-    return this.transformMessage(message);
+    return this.transformMessage(message, userId);
   }
 
   async create(
@@ -568,7 +580,7 @@ export class MessagesService {
       throw new NotFoundException('Message not found after update');
     }
 
-    const transformedMessage = this.transformMessage(updatedMessage);
+    const transformedMessage = this.transformMessage(updatedMessage, userId);
 
     // Broadcast message updated event
     try {
@@ -637,7 +649,7 @@ export class MessagesService {
       throw new NotFoundException('Message not found after update');
     }
 
-    const transformedMessage = this.transformMessage(updatedMessage);
+    const transformedMessage = this.transformMessage(updatedMessage, userId);
 
     // Broadcast message updated event
     try {
@@ -709,7 +721,7 @@ export class MessagesService {
     console.log(`Found ${replies.length} replies for message ${messageId}`);
 
     const transformedReplies = replies.map((reply) =>
-      this.transformMessage(reply),
+      this.transformMessage(reply, userId),
     );
 
     return {
@@ -764,7 +776,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data: data.map((msg) => this.transformMessage(msg)),
+      data: data.map((msg) => this.transformMessage(msg, userId)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -829,7 +841,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data: data.map((msg) => this.transformMessage(msg)),
+      data: data.map((msg) => this.transformMessage(msg, userId)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -1007,23 +1019,230 @@ export class MessagesService {
       await this.actionRepository.save(action);
     }
 
-    return await this.findOne(messageId, userId, companyId);
+    const updatedMessage = await this.findOne(messageId, userId, companyId);
+
+    // Broadcast to user's other devices
+    if (this.messagesGateway) {
+      this.messagesGateway.server.to(`private-user-${userId}`).emit('message.updated', {
+        message: updatedMessage,
+      });
+    }
+
+    return updatedMessage;
   }
 
-  async forwardMessage(messageId: number, targetChannelId: number, userId: number, companyId: number, role?: string): Promise<any> {
-    const sourceMessage = await this.findOne(messageId, userId, companyId);
+  async forwardMessage(
+    messageId: number,
+    targetId: number,
+    userId: number,
+    companyId: number,
+    role?: string,
+    isSourceDm: boolean = false,
+  ): Promise<any> {
+    try {
+      let sourceMessage: any;
 
-    // Check target channel access
-    await this.channelsService.checkChannelAccess(targetChannelId, userId, companyId, role);
+      if (isSourceDm) {
+        sourceMessage = await this.directMessageRepository.findOne({
+          where: { id: messageId },
+          relations: ['reactions', 'actions'],
+        });
+        if (!sourceMessage) throw new NotFoundException('Source direct message not found');
+      } else {
+        sourceMessage = await this.findOne(messageId, userId, companyId);
+      }
 
-    const createDto: CreateMessageDto = {
-      channelId: targetChannelId,
-      content: sourceMessage.content,
-      attachmentUrl: sourceMessage.attachmentUrl,
-      attachmentType: sourceMessage.attachmentType,
-      attachmentName: sourceMessage.attachmentName,
+      // Check if target is a Channel
+      let channel: any = null;
+      try {
+        channel = await this.channelsService.findOne(targetId);
+      } catch (err) {
+        // Not a channel or not found, will try as DM
+      }
+
+      if (channel) {
+        // Forward to Channel
+        await this.channelsService.checkChannelAccess(targetId, userId, companyId, role);
+
+        const createDto: CreateMessageDto = {
+          channelId: targetId,
+          content: sourceMessage.content,
+          attachmentUrl: sourceMessage.attachmentUrl,
+          attachmentType: sourceMessage.attachmentType,
+          attachmentName: sourceMessage.attachmentName,
+        };
+
+        const newMessage = await this.create(createDto, userId, companyId, role);
+
+        // Copy attachments if any
+        if (sourceMessage.attachments && sourceMessage.attachments.length > 0) {
+          for (const att of sourceMessage.attachments) {
+            const newAttachment = this.attachmentRepository.create({
+              companyId,
+              messageId: newMessage.id,
+              filename: att.filename,
+              originalName: att.originalName,
+              mimeType: att.mimeType,
+              size: att.size,
+              url: att.url,
+              createdBy: userId,
+            });
+            await this.attachmentRepository.save(newAttachment);
+          }
+        }
+
+        // Copy poll if any
+        if (sourceMessage.poll) {
+          const newPoll = this.pollRepository.create({
+            question: sourceMessage.poll.question,
+            allowMultipleSelection: sourceMessage.poll.allowMultipleSelection,
+            isAnonymous: sourceMessage.poll.isAnonymous,
+            companyId,
+            createdBy: userId,
+            messageId: newMessage.id,
+          });
+          const savedPoll = await this.pollRepository.save(newPoll);
+
+          if (sourceMessage.poll.options) {
+            const newOptions = sourceMessage.poll.options.map(opt => this.pollOptionRepository.create({
+              text: opt.text,
+              pollId: savedPoll.id,
+            }));
+            await this.pollOptionRepository.save(newOptions);
+          }
+        }
+
+        return await this.findOne(newMessage.id, userId, companyId);
+      } else {
+        // Try forwarding as DM (targetId is conversationId)
+        console.log(`[Forward] Looking for conversation with id=${targetId}`);
+        const conversation = await this.conversationRepository.findOne({
+          where: { id: targetId }
+        });
+        console.log(`[Forward] Conversation found:`, conversation);
+
+        if (!conversation) {
+          throw new NotFoundException('Target channel or conversation not found');
+        }
+
+        // Verify user is part of conversation
+        if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
+          throw new ForbiddenException('You are not part of this conversation');
+        }
+
+        const toUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+
+        console.log(`[Forward] Creating DM with workspaceId=${conversation.workspaceId}`);
+        const newDm = this.directMessageRepository.create({
+          content: sourceMessage.content,
+          fromUserId: userId,
+          toUserId: toUserId,
+          companyId,
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+          attachmentUrl: sourceMessage.attachmentUrl,
+          attachmentType: sourceMessage.attachmentType,
+          attachmentName: sourceMessage.attachmentName,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        let savedDm;
+        try {
+          savedDm = await this.directMessageRepository.save(newDm);
+          console.log(`[Forward] DM saved successfully with id=${savedDm.id}`);
+        } catch (saveError) {
+          console.error(`[Forward] Error saving DM:`, saveError);
+          throw new BadRequestException(`Failed to save DM: ${saveError.message}`);
+        }
+
+        // Update conversation last message
+        await this.conversationRepository.update(conversation.id, {
+          lastMessageId: savedDm.id,
+          lastMessageText: savedDm.content,
+          lastMessageAt: savedDm.createdAt,
+          updatedAt: new Date(),
+        });
+
+        const loadedDm = await this.directMessageRepository.findOne({
+          where: { id: savedDm.id },
+          relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
+        });
+
+        if (!loadedDm) {
+          throw new BadRequestException('Failed to load saved direct message');
+        }
+
+        if (this.messagesGateway) {
+          this.messagesGateway.broadcastDirectMessageSent(loadedDm);
+        }
+
+        // Return formatted for Flutter - wrap in standard response format
+        const transformedMessage = {
+          ...loadedDm,
+          user: loadedDm.fromUser,
+          is_dm: true,
+          conversation_id: loadedDm.conversationId,
+        };
+
+        return {
+          status: true,
+          code: 201,
+          message: 'Message forwarded successfully',
+          payload: transformedMessage,
+        };
+      }
+    } catch (error) {
+      console.error('Forward Message Error:', error);
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to forward: ${error.message}`);
+    }
+  }
+
+  async getStarredMessages(userId: number, companyId: number, query: MessageQueryDto): Promise<any> {
+    const page = query.page || 1;
+    const perPage = query.perPage || 20;
+    const skip = (page - 1) * perPage;
+
+    const [actions, total] = await this.actionRepository.findAndCount({
+      where: {
+        userId,
+        actionType: 'favorite',
+        isActive: true,
+      },
+      relations: ['message', 'message.user', 'message.channel', 'message.attachments', 'message.reactions', 'message.poll'],
+      skip,
+      take: perPage,
+      order: { createdAt: 'DESC' },
+    });
+
+    const messages = actions
+      .filter((action): action is any => !!action.message)
+      .map(action => this.transformMessage(action.message, userId));
+    const lastPage = Math.ceil(total / perPage);
+
+    return {
+      data: messages,
+      meta: {
+        current_page: page,
+        per_page: perPage,
+        total,
+        last_page: lastPage,
+        from: skip + 1,
+        to: skip + messages.length,
+      },
     };
+  }
 
-    return await this.create(createDto, userId, companyId, role);
+  async getStarredCount(userId: number): Promise<number> {
+    return await this.actionRepository.count({
+      where: {
+        userId,
+        actionType: 'favorite',
+        isActive: true,
+      },
+    });
   }
 }

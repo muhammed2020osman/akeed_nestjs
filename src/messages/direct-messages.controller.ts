@@ -97,7 +97,7 @@ export class DirectMessagesController {
         });
 
         const workspaceId = this.getWorkspaceId(req, false);
-        
+
         console.log('📡 Resolved workspaceId:', workspaceId);
 
         try {
@@ -154,7 +154,7 @@ export class DirectMessagesController {
                 'Conversation ID is required. Please use POST /direct-messages/conversations/get-or-create first, then use POST /direct-messages/conversations/:id/messages'
             );
         }
-        
+
         const workspaceId = this.getWorkspaceId(req, true) as number;
         return this.directMessagesService.create(
             createDto,
@@ -171,13 +171,13 @@ export class DirectMessagesController {
         @Body() createDto: CreateDirectMessageDto
     ) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
-        
+
         // Ensure conversationId is set in DTO
         const dtoWithConversation = {
             ...createDto,
             conversationId: +conversationId,
         };
-        
+
         return this.directMessagesService.create(
             dtoWithConversation,
             +req.user.id,
@@ -324,9 +324,46 @@ export class DirectMessagesController {
         }
     }
 
+    @Patch(':id')
+    async update(
+        @Req() req,
+        @Param('id') id: string,
+        @Body('content') content: string,
+    ) {
+        if (!content) throw new BadRequestException('Content is required');
+        return await this.directMessagesService.update(
+            parseInt(id),
+            content,
+            req.user.userId,
+        );
+    }
+
     @Delete(':id')
     async remove(@Req() req, @Param('id') id: string) {
         await this.directMessagesService.remove(+id, +req.user.id);
         return null;
+    }
+
+    @Post(':id/reaction')
+    async toggleReaction(
+        @Param('id') id: string,
+        @Body('emoji') emoji: string,
+        @Req() req,
+    ) {
+        return await this.directMessagesService.toggleReaction(
+            parseInt(id),
+            emoji,
+            req.user.userId,
+            req.user.companyId || req.user.company_id,
+        );
+    }
+
+    @Post(':id/favorite')
+    async toggleFavorite(@Param('id') id: string, @Req() req) {
+        return await this.directMessagesService.toggleFavorite(
+            parseInt(id),
+            req.user.userId,
+            req.user.companyId || req.user.company_id,
+        );
     }
 }

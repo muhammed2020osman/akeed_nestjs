@@ -13,6 +13,9 @@ import { Conversation } from './entities/conversation.entity';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { MessagesGateway } from './messages.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MessageReaction } from './entities/message-reaction.entity';
+import { MessageAction } from './entities/message-action.entity';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DirectMessagesService {
@@ -21,11 +24,52 @@ export class DirectMessagesService {
         private directMessageRepository: Repository<DirectMessage>,
         @InjectRepository(Conversation)
         private conversationRepository: Repository<Conversation>,
+        @InjectRepository(MessageReaction)
+        private reactionRepository: Repository<MessageReaction>,
+        @InjectRepository(MessageAction)
+        private actionRepository: Repository<MessageAction>,
         private notificationsService: NotificationsService,
+        private configService: ConfigService,
         @Optional()
         @Inject(forwardRef(() => MessagesGateway))
         private messagesGateway?: MessagesGateway,
     ) { }
+
+    private transformDirectMessage(message: DirectMessage, currentUserId?: number) {
+        const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
+
+        // Add domain to attachmentUrl if it's relative
+        let attachmentUrl = message.attachmentUrl;
+        if (attachmentUrl && !attachmentUrl.startsWith('http')) {
+            attachmentUrl = `${baseUrl}/${attachmentUrl.startsWith('/') ? attachmentUrl.slice(1) : attachmentUrl}`;
+        }
+
+        return {
+            ...message,
+            attachmentUrl,
+            is_urgent: !!message.isUrgent,
+            reactions: this.transformReactions(message.reactions || []),
+            is_pinned: (message.actions || []).some(a => a.actionType === 'pin' && a.isActive),
+            is_starred: currentUserId
+                ? (message.actions || []).some(a => a.userId === currentUserId && a.actionType === 'favorite' && a.isActive)
+                : (message.actions || []).some(a => a.actionType === 'favorite' && a.isActive),
+        };
+    }
+
+    private transformReactions(reactions: MessageReaction[]) {
+        const grouped = new Map<string, number[]>();
+        reactions.forEach((r) => {
+            if (!grouped.has(r.emoji)) {
+                grouped.set(r.emoji, []);
+            }
+            grouped.get(r.emoji)!.push(r.userId);
+        });
+
+        return Array.from(grouped.entries()).map(([emoji, users]) => ({
+            emoji,
+            users,
+        }));
+    }
 
     async findAll(
         userId: number,
@@ -33,7 +77,7 @@ export class DirectMessagesService {
         workspaceId: number,
         page: number = 1,
         perPage: number = 50,
-    ): Promise<{ data: DirectMessage[]; meta: any }> {
+    ): Promise<{ data: any[]; meta: any }> {
         if (!workspaceId) {
             throw new Error('Workspace ID is required for direct messages');
         }
@@ -49,7 +93,7 @@ export class DirectMessagesService {
         // This fetches all DMs for the user (inbox/outbox style)
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: whereConditions,
-            relations: ['fromUser', 'toUser', 'replyTo', 'conversation'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'conversation', 'reactions', 'actions'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -58,7 +102,7 @@ export class DirectMessagesService {
         const totalPages = Math.ceil(total / perPage);
 
         return {
-            data,
+            data: data.map((message) => this.transformDirectMessage(message, userId)),
             meta: {
                 current_page: page,
                 per_page: perPage,
@@ -75,7 +119,7 @@ export class DirectMessagesService {
         workspaceId: number,
         page: number = 1,
         perPage: number = 50,
-    ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+    ): Promise<{ data: any[]; meta: any; conversation: Conversation }> {
         if (!workspaceId) {
             throw new Error('Workspace ID is required for direct messages');
         }
@@ -102,7 +146,7 @@ export class DirectMessagesService {
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: conversation.id },
-            relations: ['fromUser', 'toUser', 'replyTo'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -111,7 +155,7 @@ export class DirectMessagesService {
         const totalPages = Math.ceil(total / perPage);
 
         return {
-            data,
+            data: data.map((message) => this.transformDirectMessage(message, userId)),
             meta: {
                 current_page: page,
                 per_page: perPage,
@@ -127,10 +171,10 @@ export class DirectMessagesService {
         workspaceId: number | null,
         page: number = 1,
         perPage: number = 50,
-    ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+    ): Promise<{ data: any[]; meta: any; conversation: Conversation }> {
         // Convert userId to number to ensure type consistency
         const userIdNum = Number(userId);
-        
+
         console.log('🔍 getConversationById called with:', {
             conversationId: id,
             userId: userIdNum,
@@ -198,7 +242,7 @@ export class DirectMessagesService {
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: id },
-            relations: ['fromUser', 'toUser', 'replyTo'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -214,7 +258,7 @@ export class DirectMessagesService {
         const totalPages = Math.ceil(total / perPage);
 
         return {
-            data,
+            data: data.map((message) => this.transformDirectMessage(message, userIdNum)),
             meta: {
                 current_page: page,
                 per_page: perPage,
@@ -231,7 +275,7 @@ export class DirectMessagesService {
         workspaceId: number,
         page: number = 1,
         perPage: number = 50,
-    ): Promise<{ data: DirectMessage[]; meta: any; conversation: Conversation }> {
+    ): Promise<{ data: any[]; meta: any; conversation: Conversation }> {
         if (!workspaceId) {
             throw new Error('Workspace ID is required for direct messages');
         }
@@ -255,7 +299,7 @@ export class DirectMessagesService {
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: conversation.id },
-            relations: ['fromUser', 'toUser', 'replyTo'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -264,7 +308,7 @@ export class DirectMessagesService {
         const totalPages = Math.ceil(total / perPage);
 
         return {
-            data,
+            data: data.map((message) => this.transformDirectMessage(message, userId)),
             meta: {
                 current_page: page,
                 per_page: perPage,
@@ -280,7 +324,7 @@ export class DirectMessagesService {
         userId: number,
         companyId: number,
         workspaceId: number,
-    ): Promise<DirectMessage> {
+    ): Promise<any> {
         if (!workspaceId) {
             throw new Error('Workspace ID is required for direct messages');
         }
@@ -397,7 +441,96 @@ export class DirectMessagesService {
             console.error('Error sending DM push notification:', error);
         }
 
-        return loadedMessage;
+        return this.transformDirectMessage(loadedMessage, userId);
+    }
+
+    async getOne(id: number, userId: number): Promise<any> {
+        const message = await this.directMessageRepository.findOne({
+            where: { id },
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions', 'conversation']
+        });
+
+        if (!message) throw new NotFoundException('Message not found');
+        return this.transformDirectMessage(message, userId);
+    }
+
+    async toggleReaction(messageId: number, emoji: string, userId: number, companyId: number): Promise<any> {
+        const existing = await this.reactionRepository.findOne({
+            where: { directMessageId: messageId, userId, emoji },
+        });
+
+        if (existing) {
+            await this.reactionRepository.remove(existing);
+        } else {
+            const reaction = this.reactionRepository.create({
+                directMessageId: messageId,
+                userId,
+                companyId,
+                emoji,
+            });
+            await this.reactionRepository.save(reaction);
+        }
+
+        const updatedMessage = await this.getOne(messageId, userId);
+
+        if (this.messagesGateway) {
+            this.messagesGateway.broadcastDirectMessageUpdated(updatedMessage);
+        }
+
+        return updatedMessage;
+    }
+
+    async toggleFavorite(messageId: number, userId: number, companyId: number): Promise<any> {
+        const existing = await this.actionRepository.findOne({
+            where: { directMessageId: messageId, userId, actionType: 'favorite' },
+        });
+
+        if (existing) {
+            existing.isActive = !existing.isActive;
+            await this.actionRepository.save(existing);
+        } else {
+            const action = this.actionRepository.create({
+                directMessageId: messageId,
+                userId,
+                actionType: 'favorite',
+                isActive: true,
+            });
+            await this.actionRepository.save(action);
+        }
+
+        const updatedMessage = await this.getOne(messageId, userId);
+
+        // Broadcast to user's other devices
+        if (this.messagesGateway) {
+            this.messagesGateway.server.to(`private-user-${userId}`).emit('dm.updated', {
+                message: updatedMessage,
+            });
+        }
+
+        return updatedMessage;
+    }
+
+    async update(id: number, content: string, userId: number): Promise<any> {
+        const message = await this.directMessageRepository.findOne({
+            where: { id },
+            relations: ['fromUser', 'toUser', 'replyTo']
+        });
+
+        if (!message) throw new NotFoundException('Message not found');
+        if (message.fromUserId != userId) {
+            throw new ForbiddenException('You can only update your own messages');
+        }
+
+        message.content = content;
+        message.updatedAt = new Date();
+        const updated = await this.directMessageRepository.save(message);
+
+        // Broadcast update
+        if (this.messagesGateway) {
+            this.messagesGateway.broadcastDirectMessageUpdated(updated);
+        }
+
+        return updated;
     }
 
     async markAsRead(id: number, userId: number): Promise<void> {
@@ -524,7 +657,7 @@ export class DirectMessagesService {
         // Fetch conversations where the user is either user1 or user2
         const conversations = await this.conversationRepository.find({
             where: whereConditions,
-            relations: ['user1', 'user2', 'lastMessage', 'lastMessage.fromUser', 'lastMessage.toUser'],
+            relations: ['user1', 'user2', 'lastMessage'],
             order: { updatedAt: 'DESC' },
             take: limit,
         });
@@ -581,7 +714,7 @@ export class DirectMessagesService {
 
         let conversation = await this.conversationRepository.findOne({
             where: { workspaceId, user1Id: u1, user2Id: u2 },
-            relations: ['user1', 'user2', 'lastMessage'],
+            relations: ['user1', 'user2'],
         });
 
         if (!conversation) {
@@ -596,7 +729,7 @@ export class DirectMessagesService {
             // Load relations after save
             conversation = await this.conversationRepository.findOne({
                 where: { id: conversation.id },
-                relations: ['user1', 'user2', 'lastMessage'],
+                relations: ['user1', 'user2'],
             }) as Conversation;
         }
 

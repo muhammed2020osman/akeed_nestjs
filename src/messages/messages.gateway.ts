@@ -234,6 +234,15 @@ export class MessagesGateway
     this.logger.log(`Broadcasted message.updated to channel ${message.channelId}`);
   }
 
+  // Broadcast direct message updated event
+  broadcastDirectMessageUpdated(message: any) {
+    const roomName = this.getDMRoomName(message.fromUserId, message.toUserId);
+    this.server.to(roomName).emit('dm.updated', {
+      message: this.serializeDirectMessage(message),
+    });
+    this.logger.log(`Broadcasted dm.updated to room ${roomName}`);
+  }
+
   // Broadcast message deleted event
   broadcastMessageDeleted(messageId: number, channelId: number) {
     const channelName = `private-channel.${channelId}`;
@@ -455,6 +464,10 @@ export class MessagesGateway
         }
         : null,
       reply_to: message.replyTo ? this.serializeDirectMessage(message.replyTo) : null,
+      reactions: message.reactions || [],
+      is_starred: !!message.is_starred,
+      is_pinned: !!message.is_pinned,
+      attachments: message.attachments || [],
     };
   }
 }

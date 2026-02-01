@@ -9,9 +9,12 @@ import {
     UpdateDateColumn,
     BeforeInsert,
     BeforeUpdate,
+    OneToMany,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Conversation } from './conversation.entity';
+import { MessageReaction } from './message-reaction.entity';
+import { MessageAction } from './message-action.entity';
 
 @Entity('direct_messages')
 @Index('idx_direct_messages_company', ['companyId'])
@@ -25,6 +28,9 @@ export class DirectMessage {
 
     @Column({ name: 'company_id', type: 'int', unsigned: true })
     companyId: number;
+
+    @Column({ name: 'workspace_id', type: 'int', unsigned: true, nullable: true })
+    workspaceId: number | null;
 
     @Column({ name: 'conversation_id', type: 'int', unsigned: true, nullable: true })
     conversationId: number | null;
@@ -87,6 +93,12 @@ export class DirectMessage {
     })
     @JoinColumn({ name: 'reply_to_id' })
     replyTo: DirectMessage | null;
+
+    @OneToMany(() => MessageReaction, (reaction) => reaction.directMessage)
+    reactions: MessageReaction[];
+
+    @OneToMany(() => MessageAction, (action) => action.directMessage)
+    actions: MessageAction[];
 
     @BeforeInsert()
     @BeforeUpdate()

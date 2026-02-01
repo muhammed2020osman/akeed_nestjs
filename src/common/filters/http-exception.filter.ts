@@ -5,13 +5,18 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Response, Request } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private errorLogFilePath = path.resolve(__dirname, '../../../../error.log');
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
@@ -30,6 +35,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
+    }
+
+    // Log detailed error information
+    const errorLogEntry = `[${new Date().toISOString()}] EXCEPTION ${request.method} ${request.originalUrl} ${status}\n` +
+      `Message: ${JSON.stringify(message)}\n` +
+      `Errors: ${JSON.stringify(errors)}\n` +
+      `Stack: ${exception instanceof Error ? exception.stack : 'No stack trace'}\n` +
+      `Request Body: ${JSON.stringify(request.body)}\n` +
+      `Request Query: ${JSON.stringify(request.query)}\n` +
+      `Request Params: ${JSON.stringify(request.params)}\n` +
+      `============================================================\n`;
+
+    try {
+      fs.appendFileSync(this.errorLogFilePath, errorLogEntry);
+    } catch (err) {
+      console.error('Failed to write error log:', err);
+    }
+
+    // Log to console for immediate visibility
+    console.error(`[EXCEPTION] ${request.method} ${request.originalUrl} => ${status}`);
+    console.error(`[EXCEPTION MESSAGE]`, message);
+    if (exception instanceof Error && exception.stack) {
+      console.error(`[EXCEPTION STACK]`, exception.stack);
     }
 
     // Laravel-like error response format
