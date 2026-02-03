@@ -1,0 +1,4 @@
+[2026-02-03T07:15:05.470Z] ERROR POST /api/push/subscribe 401 - 630ms
+Body: {"fcm_token":"d58svRHqTPirD3_eZoE75v:APA91bFddu5APhl8g2Tar81Ynpc2mAyRk70YkIOs0Q_zqRQde-RrwiW3dMTC4aqYEDWlkUGCmHt2a23rLxm19l5H5etdGIp_zl2-yER0_lk5qZ1VNLUFkJs","device_type":"android","device_id":"HONORRMO-N21"}
+Response: Unauthorized
+============================================================

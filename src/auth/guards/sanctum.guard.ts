@@ -42,34 +42,42 @@ export class SanctumGuard implements CanActivate {
 
         const hashedToken = crypto.createHash('sha256').update(tokenVal).digest('hex');
 
-        const tokens = await this.dataSource.query(
-            'SELECT * FROM personal_access_tokens WHERE id = ? AND token = ? LIMIT 1',
-            [id, hashedToken],
-        );
+        try {
+            const tokens = await this.dataSource.query(
+                'SELECT * FROM personal_access_tokens WHERE id = ? AND token = ? LIMIT 1',
+                [id, hashedToken],
+            );
 
-        if (!tokens || tokens.length === 0) {
+            if (!tokens || tokens.length === 0) {
+                return null;
+            }
+
+            const tokenRecord = tokens[0];
+
+            const users = await this.dataSource.query(
+                'SELECT * FROM users WHERE id = ? LIMIT 1',
+                [tokenRecord.tokenable_id],
+            );
+
+            if (!users || users.length === 0) {
+                return null;
+            }
+
+            const user = users[0];
+            return {
+                id: user.id,
+                userId: user.id,
+                companyId: user.company_id,
+                role: user.role,
+                email: user.email,
+                name: user.name,
+            };
+        } catch (error) {
+            console.error('[SanctumGuard] Database error:', error.message);
+            if (error.message.includes('ECONNRESET') || error.message.includes('Connection lost')) {
+                console.warn('[SanctumGuard] Database connection lost, attempting to reconnect...');
+            }
             return null;
         }
-
-        const tokenRecord = tokens[0];
-
-        const users = await this.dataSource.query(
-            'SELECT * FROM users WHERE id = ? LIMIT 1',
-            [tokenRecord.tokenable_id],
-        );
-
-        if (!users || users.length === 0) {
-            return null;
-        }
-
-        const user = users[0];
-        return {
-            id: user.id,
-            userId: user.id,
-            companyId: user.company_id,
-            role: user.role,
-            email: user.email,
-            name: user.name,
-        };
     }
 }

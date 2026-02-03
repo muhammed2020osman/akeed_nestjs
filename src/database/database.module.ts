@@ -21,10 +21,21 @@ import databaseConfig from '../config/database.config';
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         synchronize: configService.get<boolean>('database.synchronize'),
         logging: configService.get<boolean>('database.logging'),
+        extra: {
+          connectionLimit: 10,
+          connectTimeout: 60000,
+          acquireTimeout: 60000,
+          timeout: 60000,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 0,
+        },
+        poolSize: 10,
+        connectorPackage: 'mysql2',
+        maxQueryExecutionTime: 30000,
       }),
       inject: [ConfigService],
     }),
   ],
 })
-export class DatabaseModule {}
+export class DatabaseModule { }
 

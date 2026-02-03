@@ -9,9 +9,12 @@ import {
     Query,
     Req,
     Patch,
+    UseInterceptors,
+    UploadedFiles,
     HttpException,
     BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { DirectMessagesService } from './direct-messages.service';
 import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -146,7 +149,12 @@ export class DirectMessagesController {
     }
 
     @Post()
-    async create(@Req() req, @Body() createDto: CreateDirectMessageDto) {
+    @UseInterceptors(FilesInterceptor('attachments[]'))
+    async create(
+        @Req() req,
+        @Body() createDto: CreateDirectMessageDto,
+        @UploadedFiles() files: any[]
+    ) {
         // DEPRECATED: This endpoint requires conversationId
         // Use POST /conversations/:id/messages instead
         if (!createDto.conversationId) {
@@ -161,14 +169,17 @@ export class DirectMessagesController {
             +req.user.id,
             +req.user.companyId,
             workspaceId,
+            files
         );
     }
 
     @Post('conversations/:id/messages')
+    @UseInterceptors(FilesInterceptor('attachments[]'))
     async createInConversation(
         @Req() req,
         @Param('id') conversationId: string,
-        @Body() createDto: CreateDirectMessageDto
+        @Body() createDto: CreateDirectMessageDto,
+        @UploadedFiles() files: any[]
     ) {
         const workspaceId = this.getWorkspaceId(req, true) as number;
 
@@ -183,6 +194,7 @@ export class DirectMessagesController {
             +req.user.id,
             +req.user.companyId,
             workspaceId,
+            files
         );
     }
 

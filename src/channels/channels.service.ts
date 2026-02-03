@@ -16,7 +16,7 @@ export class ChannelsService {
   async findOne(id: number): Promise<Channel> {
     const channel = await this.channelRepository.findOne({
       where: { id },
-      relations: ['creator', 'members'],
+      relations: ['creator'],
     });
 
     if (!channel) {
@@ -24,6 +24,14 @@ export class ChannelsService {
     }
 
     return channel;
+  }
+
+  async getMembers(id: number): Promise<any[]> {
+    const channel = await this.channelRepository.findOne({
+      where: { id },
+      relations: ['members'],
+    });
+    return channel?.members || [];
   }
 
   async isUserMember(channelId: number, userId: number): Promise<boolean> {

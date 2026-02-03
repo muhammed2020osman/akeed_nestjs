@@ -16,6 +16,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { MessageQueryDto } from './dto/message-query.dto';
 import { ChannelsService } from '../channels/channels.service';
+import { DirectMessagesService } from './direct-messages.service';
 import { MessagesGateway } from './messages.gateway';
 import { Poll } from './entities/poll.entity';
 import { PollOption } from './entities/poll-option.entity';
@@ -54,6 +55,8 @@ export class MessagesService {
     private conversationRepository: Repository<Conversation>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
+    @Inject(forwardRef(() => DirectMessagesService))
+    private directMessagesService: DirectMessagesService,
     private notificationsService: NotificationsService,
     private configService: ConfigService,
     @Optional()
@@ -86,7 +89,7 @@ export class MessagesService {
   }
 
   private transformMessage(message: Message, currentUserId?: number) {
-    const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
+    const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || process.env.LARAVEL_APP_URL || 'https://slack.gumra-ai.com';
 
     // Add domain to attachmentUrl if it's relative
     let attachmentUrl = message.attachmentUrl;
@@ -95,12 +98,29 @@ export class MessagesService {
     }
 
     // Add domain to attachments array items
-    const attachments = (message.attachments || []).map(att => ({
+    let attachments = (message.attachments || []).map(att => ({
       ...att,
       url: att.url && !att.url.startsWith('http')
         ? `${baseUrl}/${att.url.startsWith('/') ? att.url.slice(1) : att.url}`
         : att.url
     }));
+
+    // Backward compatibility: If attachments is empty but attachmentUrl is present
+    if (attachments.length === 0 && attachmentUrl) {
+      attachments.push({
+        id: (message as any).id || 0,
+        url: attachmentUrl,
+        filename: message.attachmentName || 'attachment',
+        originalName: message.attachmentName || 'attachment',
+        mimeType: message.attachmentType || 'application/octet-stream',
+        size: '0',
+        companyId: message.companyId,
+        messageId: (message as any).id,
+        createdBy: (message as any).userId || (message as any).fromUserId,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+      } as any);
+    }
 
     return {
       ...message,
@@ -174,7 +194,7 @@ export class MessagesService {
     const totalPages = Math.ceil(total / perPage);
 
     return {
-      data: data.map((msg) => this.transformMessage(msg)),
+      data: data.map((msg) => this.transformMessage(msg, userId)),
       meta: {
         current_page: page,
         per_page: perPage,
@@ -331,20 +351,48 @@ export class MessagesService {
       role,
     );
 
+    // 🔍 DEBUG: Log incoming data for multipart handling
+    console.log('📦 [MessagesService] create:', {
+      channelId: createMessageDto.channelId,
+      threadParentId: createMessageDto.threadParentId,
+      thread_parent_id: (createMessageDto as any).thread_parent_id,
+      content: createMessageDto.content,
+      filesCount: files?.length || 0
+    });
+
     const { poll: pollData, ...messageData } = createMessageDto;
 
+    // Support both camelCase and snake_case from multipart/form-data
+    const threadParentId = createMessageDto.threadParentId || (createMessageDto as any).thread_parent_id;
+    const replyToId = createMessageDto.replyToId || (createMessageDto as any).reply_to_id;
+    const localId = createMessageDto.localId || (createMessageDto as any).local_id;
+    const attachmentUrl = createMessageDto.attachmentUrl || (createMessageDto as any).attachment_url;
+    const attachmentType = createMessageDto.attachmentType || (createMessageDto as any).attachment_type;
+    const attachmentName = createMessageDto.attachmentName || (createMessageDto as any).attachment_name;
+    const isUrgent = createMessageDto.isUrgent || (createMessageDto as any).is_urgent || false;
+    const mentionedUserIds = createMessageDto.mentionedUserIds || (createMessageDto as any)['mentioned_user_ids[]'] || (createMessageDto as any).mentioned_user_ids || [];
+
     // FINAL SOLUTION: QUAX CLEANING - Strip domain manually before entity creation
-    if (messageData.attachmentUrl && messageData.attachmentUrl.includes('uploads/')) {
-      const parts = messageData.attachmentUrl.split('uploads/');
-      messageData.attachmentUrl = 'uploads/' + parts[parts.length - 1];
+    let cleanedAttachmentUrl = attachmentUrl;
+    if (cleanedAttachmentUrl && cleanedAttachmentUrl.includes('uploads/')) {
+      const parts = cleanedAttachmentUrl.split('uploads/');
+      cleanedAttachmentUrl = 'uploads/' + parts[parts.length - 1];
     }
 
     const newMessage = this.messageRepository.create({
       ...messageData,
+      content: createMessageDto.content,
       userId,
       companyId,
       channelId: createMessageDto.channelId,
-      mentions: createMessageDto.mentionedUserIds || [],
+      threadParentId: threadParentId ? Number(threadParentId) : null,
+      replyToId: replyToId ? Number(replyToId) : null,
+      localId,
+      attachmentUrl: cleanedAttachmentUrl,
+      attachmentType,
+      attachmentName,
+      isUrgent: !!isUrgent,
+      mentions: Array.isArray(mentionedUserIds) ? mentionedUserIds.map(id => Number(id)) : [],
       topic: createMessageDto.topicId
         ? ({ id: createMessageDto.topicId } as Topic)
         : null,
@@ -479,9 +527,12 @@ export class MessagesService {
 
     // Send Push Notifications
     try {
-      if (channel && channel.members) {
+      if (channel) {
+        // Fetch members explicitly if not already loaded (performance optimization)
+        const members = await this.channelsService.getMembers(channel.id);
+
         // Filter out the sender
-        const recipients = channel.members.filter(member => member.id !== userId);
+        const recipients = members.filter(member => member.id !== userId);
 
         for (const recipient of recipients) {
           // 1. Send Push Notification
@@ -696,14 +747,121 @@ export class MessagesService {
     companyId: number,
   ): Promise<{ message: any; replies: any[]; replies_count: number }> {
     console.log(`Getting replies for message ${messageId}`);
-    const message = await this.findOne(messageId, userId, companyId);
+
+    let message: any;
+    let replies: any[] = [];
+    let isDirectMessage = false;
+
+    try {
+      // Try to find it as a channel message first
+      message = await this.findOne(messageId, userId, companyId);
+    } catch (error) {
+      // Only proceed to check DM if it's a NotFoundException or ForbiddenException (meaning not a channel msg)
+      // If it's a database connection error, we should probably fail fast
+      if (
+        !(error instanceof NotFoundException) &&
+        !(error instanceof ForbiddenException)
+      ) {
+        console.error(
+          `❌ [getReplies] Database or other error while fetching channel message ${messageId}:`,
+          error,
+        );
+        throw error; // Re-throw critical errors
+      }
+
+      console.log(
+        `Message ${messageId} not found in channels, trying DirectMessages...`,
+      );
+
+      try {
+        const directMessage = await this.directMessageRepository.findOne({
+          where: { id: messageId },
+          relations: [
+            'fromUser',
+            'toUser',
+            'reactions',
+            'actions',
+            'attachments',
+            'conversation',
+          ],
+        });
+
+        if (!directMessage) {
+          console.log(`❌ Message ${messageId} not found in DirectMessages either`);
+          throw new NotFoundException('Message not found');
+        }
+
+        // Verify access - check if user is part of the conversation or sender/receiver
+        if (
+          directMessage.fromUserId !== userId &&
+          directMessage.toUserId !== userId
+        ) {
+          // Double check conversation participants just in case
+          if (!directMessage.conversationId) {
+            console.log(`❌ DM ${messageId} has no conversationId and user is not sender/receiver`);
+            throw new ForbiddenException('Access denied to this message');
+          }
+
+          const conversation = await this.conversationRepository.findOne({
+            where: { id: directMessage.conversationId },
+          });
+
+          if (
+            !conversation ||
+            (conversation.user1Id !== userId && conversation.user2Id !== userId)
+          ) {
+            console.log(
+              `❌ User ${userId} does not have access to DM ${messageId}`,
+            );
+            throw new ForbiddenException('Access denied to this message');
+          }
+        }
+
+        isDirectMessage = true;
+        message = this.directMessagesService.transformDirectMessage(
+          directMessage,
+          userId,
+        );
+
+        const directReplies = await this.directMessageRepository.find({
+          where: { replyToId: messageId },
+          relations: [
+            'fromUser',
+            'toUser',
+            'reactions',
+            'actions',
+            'attachments',
+          ],
+          order: { createdAt: 'ASC' },
+        });
+
+        replies = directReplies.map((reply) =>
+          this.directMessagesService.transformDirectMessage(reply, userId),
+        );
+
+        console.log(
+          `Found ${replies.length} direct message replies for message ${messageId}`,
+        );
+
+        return {
+          message,
+          replies,
+          replies_count: replies.length,
+        };
+      } catch (dmError) {
+        console.error(
+          `❌ [getReplies] Error fetching DM ${messageId}:`,
+          dmError,
+        );
+        throw dmError;
+      }
+    }
 
     if (!message.channelId) {
       throw new BadRequestException('Message does not belong to a channel');
     }
 
-    // Use a direct find to ensure ALL types of replies and their relations are loaded
-    const replies = await this.messageRepository.find({
+    replies = await this.messageRepository.find({
       where: [{ replyToId: messageId }, { threadParentId: messageId }],
       relations: [
         'user',
@@ -712,6 +870,7 @@ export class MessagesService {
         'poll.options',
         'poll.options.votes',
         'topic',
+        'attachments',
         'reactions',
         'actions',
       ],
@@ -1139,7 +1298,6 @@ export class MessagesService {
           toUserId: toUserId,
           companyId,
           conversationId: conversation.id,
-          workspaceId: conversation.workspaceId,
           attachmentUrl: sourceMessage.attachmentUrl,
           attachmentType: sourceMessage.attachmentType,
           attachmentName: sourceMessage.attachmentName,

@@ -15,6 +15,7 @@ import { MessagesGateway } from './messages.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MessageReaction } from './entities/message-reaction.entity';
 import { MessageAction } from './entities/message-action.entity';
+import { Attachment } from './entities/attachment.entity';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -28,6 +29,8 @@ export class DirectMessagesService {
         private reactionRepository: Repository<MessageReaction>,
         @InjectRepository(MessageAction)
         private actionRepository: Repository<MessageAction>,
+        @InjectRepository(Attachment)
+        private attachmentRepository: Repository<Attachment>,
         private notificationsService: NotificationsService,
         private configService: ConfigService,
         @Optional()
@@ -35,8 +38,8 @@ export class DirectMessagesService {
         private messagesGateway?: MessagesGateway,
     ) { }
 
-    private transformDirectMessage(message: DirectMessage, currentUserId?: number) {
-        const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
+    public transformDirectMessage(message: DirectMessage, currentUserId?: number) {
+        const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || process.env.LARAVEL_APP_URL || 'https://slack.gumra-ai.com';
 
         // Add domain to attachmentUrl if it's relative
         let attachmentUrl = message.attachmentUrl;
@@ -44,9 +47,35 @@ export class DirectMessagesService {
             attachmentUrl = `${baseUrl}/${attachmentUrl.startsWith('/') ? attachmentUrl.slice(1) : attachmentUrl}`;
         }
 
+        // Add domain to attachments array items
+        let attachments = (message.attachments || []).map(att => ({
+            ...att,
+            url: att.url && !att.url.startsWith('http')
+                ? `${baseUrl}/${att.url.startsWith('/') ? att.url.slice(1) : att.url}`
+                : att.url
+        }));
+
+        // Backward compatibility: If attachments is empty but attachmentUrl is present
+        if (attachments.length === 0 && attachmentUrl) {
+            attachments.push({
+                id: message.id || 0,
+                url: attachmentUrl,
+                filename: message.attachmentName || 'attachment',
+                originalName: message.attachmentName || 'attachment',
+                mimeType: message.attachmentType || 'application/octet-stream',
+                size: '0',
+                companyId: message.companyId,
+                messageId: message.id,
+                createdBy: message.fromUserId,
+                createdAt: message.createdAt,
+                updatedAt: message.updatedAt,
+            } as any);
+        }
+
         return {
             ...message,
             attachmentUrl,
+            attachments,
             is_urgent: !!message.isUrgent,
             reactions: this.transformReactions(message.reactions || []),
             is_pinned: (message.actions || []).some(a => a.actionType === 'pin' && a.isActive),
@@ -93,7 +122,7 @@ export class DirectMessagesService {
         // This fetches all DMs for the user (inbox/outbox style)
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: whereConditions,
-            relations: ['fromUser', 'toUser', 'replyTo', 'conversation', 'reactions', 'actions'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'conversation', 'reactions', 'actions', 'attachments'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -146,7 +175,7 @@ export class DirectMessagesService {
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: conversation.id },
-            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions', 'attachments'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -242,7 +271,7 @@ export class DirectMessagesService {
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: id },
-            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions', 'attachments'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -299,7 +328,7 @@ export class DirectMessagesService {
 
         const [data, total] = await this.directMessageRepository.findAndCount({
             where: { conversationId: conversation.id },
-            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions', 'attachments'],
             order: { createdAt: 'DESC' },
             skip,
             take: perPage,
@@ -324,6 +353,7 @@ export class DirectMessagesService {
         userId: number,
         companyId: number,
         workspaceId: number,
+        files?: any[],
     ): Promise<any> {
         if (!workspaceId) {
             throw new Error('Workspace ID is required for direct messages');
@@ -341,7 +371,7 @@ export class DirectMessagesService {
                     localId: createDto.localId,
                     fromUserId: userId,
                 },
-                relations: ['fromUser', 'toUser', 'replyTo'],
+                relations: ['fromUser', 'toUser', 'replyTo', 'attachments'],
             });
 
             if (existingMessage) {
@@ -385,6 +415,65 @@ export class DirectMessagesService {
 
         const savedMessage = await this.directMessageRepository.save(newMessage);
 
+        // Handle File Uploads via internal API (Laravel)
+        if (files && files.length > 0) {
+            console.log(`📂 [DirectMessagesService] Forwarding ${files.length} files to Laravel...`);
+
+            const baseUrl = this.configService.get<string>('LARAVEL_APP_URL');
+            const internalToken = this.configService.get<string>('INTERNAL_API_TOKEN', 'temp_internal_token_123');
+            const uploadUrl = `${baseUrl}/api/internal/upload`;
+
+            const axios = require('axios');
+            const FormData = require('form-data');
+
+            for (const file of files) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file.buffer, {
+                        filename: file.originalname,
+                        contentType: file.mimetype,
+                    });
+                    formData.append('directory', 'attachments');
+
+                    const response = await axios.post(uploadUrl, formData, {
+                        headers: {
+                            ...formData.getHeaders(),
+                            'X-Internal-Token': internalToken,
+                        },
+                    });
+
+                    if (response.data && response.data.success) {
+                        const filename = response.data.filename;
+                        const relativeUrl = `uploads/attachments/${filename}`;
+
+                        // Create Attachment Entity
+                        const attachment = this.attachmentRepository.create({
+                            companyId,
+                            directMessageId: savedMessage.id,
+                            filename: filename,
+                            originalName: file.originalname,
+                            mimeType: file.mimetype,
+                            size: String(file.size),
+                            url: relativeUrl,
+                            createdBy: userId,
+                        });
+
+                        await this.attachmentRepository.save(attachment);
+
+                        // Single attachment compatibility
+                        if (!savedMessage.attachmentUrl) {
+                            savedMessage.attachmentUrl = relativeUrl;
+                            savedMessage.attachmentType = file.mimetype;
+                            savedMessage.attachmentName = file.originalname;
+                            await this.directMessageRepository.save(savedMessage);
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ [DirectMessagesService] Error uploading file to Laravel:', error.message);
+                }
+            }
+        }
+
         // Update conversation last message
         await this.conversationRepository.update(conversation.id, {
             lastMessageId: savedMessage.id,
@@ -395,7 +484,7 @@ export class DirectMessagesService {
 
         const loadedMessage = await this.directMessageRepository.findOne({
             where: { id: savedMessage.id },
-            relations: ['fromUser', 'toUser', 'replyTo'],
+            relations: ['fromUser', 'toUser', 'replyTo', 'attachments'],
         });
 
         if (!loadedMessage) {
@@ -404,7 +493,7 @@ export class DirectMessagesService {
 
         // Broadcast DM sent event via Socket gateway
         if (this.messagesGateway) {
-            this.messagesGateway.broadcastDirectMessageSent(loadedMessage);
+            this.messagesGateway.broadcastDirectMessageSent(this.transformDirectMessage(loadedMessage, userId));
         }
 
         // Send Push Notification to Recipient
@@ -447,7 +536,7 @@ export class DirectMessagesService {
     async getOne(id: number, userId: number): Promise<any> {
         const message = await this.directMessageRepository.findOne({
             where: { id },
-            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions', 'conversation']
+            relations: ['fromUser', 'toUser', 'replyTo', 'reactions', 'actions', 'conversation', 'attachments']
         });
 
         if (!message) throw new NotFoundException('Message not found');
@@ -513,7 +602,7 @@ export class DirectMessagesService {
     async update(id: number, content: string, userId: number): Promise<any> {
         const message = await this.directMessageRepository.findOne({
             where: { id },
-            relations: ['fromUser', 'toUser', 'replyTo']
+            relations: ['fromUser', 'toUser', 'replyTo', 'attachments']
         });
 
         if (!message) throw new NotFoundException('Message not found');
@@ -525,12 +614,15 @@ export class DirectMessagesService {
         message.updatedAt = new Date();
         const updated = await this.directMessageRepository.save(message);
 
+        // Load with attachments for broadcast
+        const loadedUpdated = await this.getOne(id, userId);
+
         // Broadcast update
         if (this.messagesGateway) {
-            this.messagesGateway.broadcastDirectMessageUpdated(updated);
+            this.messagesGateway.broadcastDirectMessageUpdated(loadedUpdated);
         }
 
-        return updated;
+        return loadedUpdated;
     }
 
     async markAsRead(id: number, userId: number): Promise<void> {
@@ -574,6 +666,7 @@ export class DirectMessagesService {
     async remove(id: number, userId: number): Promise<void> {
         const message = await this.directMessageRepository.findOne({
             where: { id },
+            relations: ['attachments']
         });
         if (!message) throw new NotFoundException('Message not found');
 
@@ -594,7 +687,8 @@ export class DirectMessagesService {
             // or if we just want to be sure it's correct
             const newLastMessage = await this.directMessageRepository.findOne({
                 where: { conversationId },
-                order: { createdAt: 'DESC' }
+                order: { createdAt: 'DESC' },
+                relations: ['attachments']
             });
 
             if (newLastMessage) {

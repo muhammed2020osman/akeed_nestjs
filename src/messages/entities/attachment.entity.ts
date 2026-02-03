@@ -11,10 +11,12 @@ import {
     BeforeUpdate,
 } from 'typeorm';
 import { Message } from './message.entity';
+import { DirectMessage } from './direct-message.entity';
 
 @Entity('attachments')
 @Index('idx_attachments_company', ['companyId'])
 @Index('idx_attachments_message', ['messageId'])
+@Index('idx_attachments_direct_message', ['directMessageId'])
 export class Attachment {
     @PrimaryGeneratedColumn()
     id: number;
@@ -22,8 +24,11 @@ export class Attachment {
     @Column({ name: 'company_id', type: 'bigint', unsigned: true })
     companyId: number;
 
-    @Column({ name: 'message_id', type: 'bigint', unsigned: true })
-    messageId: number;
+    @Column({ name: 'message_id', type: 'bigint', unsigned: true, nullable: true })
+    messageId: number | null;
+
+    @Column({ name: 'direct_message_id', type: 'int', unsigned: true, nullable: true })
+    directMessageId: number | null;
 
     @Column({ type: 'varchar', length: 255 })
     filename: string;
@@ -54,6 +59,13 @@ export class Attachment {
     })
     @JoinColumn({ name: 'message_id' })
     message: Message;
+
+    @ManyToOne(() => DirectMessage, (dm) => dm.attachments, {
+        onDelete: 'CASCADE',
+        nullable: true,
+    })
+    @JoinColumn({ name: 'direct_message_id' })
+    directMessage: DirectMessage | null;
 
     @BeforeInsert()
     @BeforeUpdate()
