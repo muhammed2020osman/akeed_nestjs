@@ -23,7 +23,9 @@ export class ResponseInterceptor implements NestInterceptor {
 
         return this.toSnakeCase({
           status: statusCode >= 200 && statusCode < 400,
+          success: statusCode >= 200 && statusCode < 400,
           code: statusCode,
+          status_code: statusCode, // Added for consistency
           message: this.getDefaultMessage(statusCode),
           payload: data,
         });

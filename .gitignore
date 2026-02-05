@@ -6,3 +6,6 @@ dist
 # package-lock.json
 /logs
 /res
+/debug
+/debug/*
+*.log

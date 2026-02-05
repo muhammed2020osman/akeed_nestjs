@@ -33,5 +33,9 @@ export class UpdateMessageDto {
   @IsOptional()
   @IsBoolean()
   isCompleted?: boolean;
+
+  @IsOptional()
+  @IsString()
+  linked_ticket_id?: string;
 }
 

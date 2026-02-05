@@ -31,7 +31,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof exceptionResponse === 'object') {
         const responseObj = exceptionResponse as any;
         message = responseObj.message || exception.message;
-        errors = responseObj.errors || null;
+        // Correctly extract errors from various potential locations
+        errors = responseObj.errors || (responseObj.payload && responseObj.payload.errors) || responseObj.payload || null;
       }
     } else if (exception instanceof Error) {
       message = exception.message;
@@ -62,10 +63,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Laravel-like error response format
     const errorResponse = {
+      status: false,
       success: false,
+      code: status,
       message: Array.isArray(message) ? message[0] : message,
       payload: errors || null,
-      status: status,
+      errors: errors || null,
+      status_code: status,
     };
 
     response.status(status).json(errorResponse);
