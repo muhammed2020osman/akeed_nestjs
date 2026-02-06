@@ -1,36 +1,35 @@
 import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  Inject,
-  forwardRef,
-  Optional,
+    BadRequestException,
+    ForbiddenException,
+    forwardRef,
+    Inject,
+    Injectable,
+    NotFoundException,
+    Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Message } from './entities/message.entity';
-import { DirectMessage } from './entities/direct-message.entity';
-import { Conversation } from './entities/conversation.entity';
-import { CreateMessageDto } from './dto/create-message.dto';
-import { UpdateMessageDto } from './dto/update-message.dto';
-import { MessageQueryDto } from './dto/message-query.dto';
+import axios from 'axios';
+import { In, Repository } from 'typeorm';
+import { ActionItem } from '../action-items/entities/action-item.entity';
 import { ChannelsService } from '../channels/channels.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Ticket } from '../tickets/entities/ticket.entity';
 import { DirectMessagesService } from './direct-messages.service';
-import { MessagesGateway } from './messages.gateway';
-import { Poll } from './entities/poll.entity';
+import { CreateMessageDto } from './dto/create-message.dto';
+import { MessageQueryDto } from './dto/message-query.dto';
+import { UpdateMessageDto } from './dto/update-message.dto';
+import { Attachment } from './entities/attachment.entity';
+import { Conversation } from './entities/conversation.entity';
+import { DirectMessage } from './entities/direct-message.entity';
+import { MessageAction } from './entities/message-action.entity';
+import { MessageReaction } from './entities/message-reaction.entity';
+import { Message } from './entities/message.entity';
 import { PollOption } from './entities/poll-option.entity';
 import { PollVote } from './entities/poll-vote.entity';
+import { Poll } from './entities/poll.entity';
 import { Topic } from './entities/topic.entity';
-import { Attachment } from './entities/attachment.entity';
-import { MessageReaction } from './entities/message-reaction.entity';
-import { MessageAction } from './entities/message-action.entity';
-import { NotificationsService } from '../notifications/notifications.service';
-import * as fs from 'fs';
-import * as path from 'path';
-import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
-import axios from 'axios';
+import { MessagesGateway } from './messages.gateway';
 
 @Injectable()
 export class MessagesService {
@@ -53,6 +52,10 @@ export class MessagesService {
     private directMessageRepository: Repository<DirectMessage>,
     @InjectRepository(Conversation)
     private conversationRepository: Repository<Conversation>,
+    @InjectRepository(Ticket)
+    private ticketRepository: Repository<Ticket>,
+    @InjectRepository(ActionItem)
+    private actionItemRepository: Repository<ActionItem>,
     @Inject(forwardRef(() => ChannelsService))
     private channelsService: ChannelsService,
     @Inject(forwardRef(() => DirectMessagesService))
@@ -135,7 +138,31 @@ export class MessagesService {
       is_starred: currentUserId
         ? (message.actions || []).some(a => a.userId === currentUserId && a.actionType === 'favorite' && a.isActive)
         : (message.actions || []).some(a => a.actionType === 'favorite' && a.isActive),
+      tickets: (message as any).tickets || [],
+      action_items: (message as any).actionItems || (message as any).action_items || [],
     };
+  }
+
+  private async enrichMessagesWithTickets(messages: any[]) {
+    if (!messages || messages.length === 0) return messages;
+
+    const messageIds = messages.map(m => m.id).filter(id => id !== undefined);
+    if (messageIds.length === 0) return messages;
+
+    const tickets = await this.ticketRepository.find({
+      where: { messageId: In(messageIds) },
+    });
+
+    const actionItems = await this.actionItemRepository.find({
+      where: { messageId: In(messageIds) },
+    });
+
+    messages.forEach(msg => {
+      msg.tickets = tickets.filter(t => Number(t.messageId) === Number(msg.id));
+      msg.action_items = actionItems.filter(ai => Number(ai.messageId) === Number(msg.id));
+    });
+
+    return messages;
   }
 
   private transformReactions(reactions: MessageReaction[]) {
@@ -193,8 +220,11 @@ export class MessagesService {
 
     const totalPages = Math.ceil(total / perPage);
 
+    const enrichedData = data.map((msg) => this.transformMessage(msg, userId));
+    await this.enrichMessagesWithTickets(enrichedData);
+
     return {
-      data: data.map((msg) => this.transformMessage(msg, userId)),
+      data: enrichedData,
       meta: {
         current_page: page,
         per_page: perPage,
@@ -268,8 +298,11 @@ export class MessagesService {
 
     const totalPages = Math.ceil(total / perPage);
 
+    const enrichedData = data.map((message) => this.transformMessage(message, userId));
+    await this.enrichMessagesWithTickets(enrichedData);
+
     return {
-      data: data.map((message) => this.transformMessage(message, userId)),
+      data: enrichedData,
       meta: {
         current_page: page,
         per_page: perPage,
@@ -317,7 +350,9 @@ export class MessagesService {
       throw new ForbiddenException('Access denied to this message');
     }
 
-    return this.transformMessage(message, userId);
+    const transformed = this.transformMessage(message, userId);
+    await this.enrichMessagesWithTickets([transformed]);
+    return transformed;
   }
 
   async create(
