@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Query, Body, UseGuards } from '@nestjs/common';
-import { TicketsService } from './tickets.service';
-import { CreateTicketDto } from './dto/create-ticket.dto';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CreateTicketDto } from './dto/create-ticket.dto';
+import { TicketsService } from './tickets.service';
 
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
@@ -20,5 +20,10 @@ export class TicketsController {
         @CurrentUser() user: any,
     ) {
         return this.ticketsService.create(createTicketDto, user.userId, user.companyId || user.company_id);
+    }
+
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.ticketsService.findOne(id);
     }
 }

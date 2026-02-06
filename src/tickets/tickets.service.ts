@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket } from './entities/ticket.entity';
 import { ActionItem } from '../action-items/entities/action-item.entity';
 import { CreateTicketDto } from './dto/create-ticket.dto';
+import { Ticket } from './entities/ticket.entity';
 
 @Injectable()
 export class TicketsService {
@@ -44,86 +44,61 @@ export class TicketsService {
             const limit = query.per_page ? parseInt(query.per_page) : 15;
             const skip = (page - 1) * limit;
 
-            // Build query for Tickets
             const ticketQuery = this.ticketsRepository.createQueryBuilder('ticket')
-                .leftJoinAndSelect('ticket.creator', 'creator')
-                .leftJoinAndSelect('ticket.assignee', 'assignee');
+                .leftJoinAndSelect('ticket.createdByUser', 'createdByUser')
+                .leftJoinAndSelect('ticket.assignedToUser', 'assignedToUser')
+                .leftJoinAndSelect('ticket.channel', 'channel');
 
-            // Build query for Action Items
-            const actionItemQuery = this.actionItemsRepository.createQueryBuilder('action_item')
-                .leftJoinAndSelect('action_item.creator', 'creator_ai')
-                .leftJoinAndSelect('action_item.assignee', 'assignee_ai');
-
-            // Apply filters
             if (query.status) {
                 const statuses = query.status.split(',').map(s => s.trim());
                 ticketQuery.andWhere('ticket.status IN (:...statuses)', { statuses });
-
-                const upperStatuses = statuses.map(s => s.toUpperCase());
-                actionItemQuery.andWhere('action_item.status IN (:...upperStatuses)', { upperStatuses });
             }
 
             if (query.assigned_to) {
-                ticketQuery.andWhere('ticket.assignedTo = :assignedTo', { assignedTo: query.assigned_to });
-                actionItemQuery.andWhere('action_item.assigneeId = :assignedTo', { assignedTo: query.assigned_to });
+                ticketQuery.andWhere('ticket.assignedTo = :assignedTo', { assignedTo: parseInt(query.assigned_to) });
             }
 
             if (query.created_by) {
-                ticketQuery.andWhere('ticket.createdBy = :createdBy', { createdBy: query.created_by });
-                actionItemQuery.andWhere('action_item.userId = :createdBy', { createdBy: query.created_by });
+                ticketQuery.andWhere('ticket.createdBy = :createdBy', { createdBy: parseInt(query.created_by) });
             }
 
-            // Fetch results using limit/offset instead of take/skip to avoid TypeORM bug with complex metadata
-            const [tickets, totalTickets] = await ticketQuery
+            if (query.channel_id) {
+                ticketQuery.andWhere('ticket.channelId = :channelId', { channelId: parseInt(query.channel_id) });
+            }
+
+            const [tickets, total] = await ticketQuery
                 .orderBy('ticket.createdAt', 'DESC')
                 .limit(limit)
                 .offset(skip)
                 .getManyAndCount();
 
-            const [actionItems, totalActionItems] = await actionItemQuery
-                .orderBy('action_item.createdAt', 'DESC')
-                .limit(limit)
-                .offset(skip)
-                .getManyAndCount();
-
-            // Map ActionItems to Ticket shape
-            const mappedActionItems = actionItems.length > 0 ? actionItems.map(ai => ({
-                id: ai.id,
-                title: ai.title,
-                description: ai.description,
-                type: ai.type.toLowerCase(),
-                status: ai.status.toLowerCase(),
-                priority: ai.priority.toLowerCase(),
-                created_by: ai.userId.toString(),
-                assigned_to: ai.assigneeId?.toString(),
-                created_by_user: ai.creator,
-                assigned_to_user: ai.assignee,
-                createdAt: ai.createdAt,
-                updatedAt: ai.updatedAt,
-                message_id: ai.messageId,
-                channel_id: ai.channelId,
-                is_action_item: true,
-                approval_status: ai.status === 'APPROVED' ? 'approved' :
-                    ai.status === 'REJECTED' ? 'rejected' : 'pending',
-            })) : [];
-
-            // Merge and Sort
-            const allItems = [...mappedActionItems, ...tickets].sort((a, b) => {
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-            });
-
-            const paginatedItems = allItems.slice(0, limit);
-
             return {
-                data: paginatedItems,
-                total: totalTickets + totalActionItems,
+                data: tickets,
+                total: total,
                 per_page: limit,
                 current_page: page,
-                last_page: Math.ceil((totalTickets + totalActionItems) / limit),
+                last_page: Math.ceil(total / limit),
             };
         } catch (error) {
             console.error('Error in findAll:', error);
-            throw error; // Re-throw to be caught by NestJS global error handler and our middleware
+            throw error;
+        }
+    }
+
+    async findOne(id: string) {
+        try {
+            const ticketId = parseInt(id);
+            if (isNaN(ticketId)) return null;
+
+            return await this.ticketsRepository.createQueryBuilder('ticket')
+                .leftJoinAndSelect('ticket.createdByUser', 'createdByUser')
+                .leftJoinAndSelect('ticket.assignedToUser', 'assignedToUser')
+                .leftJoinAndSelect('ticket.channel', 'channel')
+                .where('ticket.id = :id', { id: ticketId })
+                .getOne();
+        } catch (error) {
+            console.error('Error in findOne:', error);
+            throw error;
         }
     }
 }

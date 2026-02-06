@@ -1,15 +1,14 @@
 import {
-    Entity,
-    PrimaryGeneratedColumn,
     Column,
     CreateDateColumn,
-    UpdateDateColumn,
-    ManyToOne,
+    Entity,
     JoinColumn,
-    OneToMany,
+    ManyToOne,
+    PrimaryGeneratedColumn,
+    UpdateDateColumn
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
 import { Channel } from '../../channels/entities/channel.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('tickets')
 export class Ticket {
@@ -80,11 +79,11 @@ export class Ticket {
     // Relations
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by' })
-    creator: User;
+    createdByUser: User;
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'assigned_to' })
-    assignee: User;
+    assignedToUser: User;
 
     @ManyToOne(() => Channel)
     @JoinColumn({ name: 'channel_id' })
