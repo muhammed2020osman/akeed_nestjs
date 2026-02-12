@@ -1,16 +1,16 @@
 import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  UseGuards,
-  Patch,
+    Controller,
+    Get,
+    Param,
+    Patch,
+    Query,
+    UseGuards,
 } from '@nestjs/common';
-import { ChannelsService } from './channels.service';
-import { MessagesService } from '../messages/messages.service';
-import { MessageQueryDto } from '../messages/dto/message-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { MessageQueryDto } from '../messages/dto/message-query.dto';
+import { MessagesService } from '../messages/messages.service';
+import { ChannelsService } from './channels.service';
 
 @Controller('channels')
 @UseGuards(JwtAuthGuard)
@@ -77,6 +77,18 @@ export class ChannelsController {
     return {
       success: true,
       message: 'Channel notifications marked as read',
+    };
+  }
+
+  @Get(':id/members')
+  async getChannelMembersList(
+    @Param('id') id: string,
+    @Query('query') query: string,
+  ) {
+    const members = await this.channelsService.getMembers(parseInt(id), query);
+    return {
+      success: true,
+      data: members,
     };
   }
 }

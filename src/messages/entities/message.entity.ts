@@ -1,24 +1,25 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  OneToMany,
-  OneToOne,
-  JoinColumn,
-  Index,
-  CreateDateColumn,
-  UpdateDateColumn,
-  BeforeInsert,
-  BeforeUpdate,
+    BeforeInsert,
+    BeforeUpdate,
+    Column,
+    CreateDateColumn,
+    Entity,
+    Index,
+    JoinColumn,
+    ManyToOne,
+    OneToMany,
+    OneToOne,
+    PrimaryGeneratedColumn,
+    UpdateDateColumn,
 } from 'typeorm';
 import { Channel } from '../../channels/entities/channel.entity';
 import { User } from '../../users/entities/user.entity';
+import { Attachment } from './attachment.entity';
+import { MessageAction } from './message-action.entity';
+import { MessageMention } from './message-mention.entity';
+import { MessageReaction } from './message-reaction.entity';
 import { Poll } from './poll.entity';
 import { Topic } from './topic.entity';
-import { Attachment } from './attachment.entity';
-import { MessageReaction } from './message-reaction.entity';
-import { MessageAction } from './message-action.entity';
 
 
 @Entity('messages')
@@ -130,6 +131,9 @@ export class Message {
 
   @OneToMany(() => MessageAction, (action) => action.message)
   actions: MessageAction[];
+
+  @OneToMany(() => MessageMention, (mention) => mention.message)
+  mentionsRelation: MessageMention[];
 
   @BeforeInsert()
   @BeforeUpdate()

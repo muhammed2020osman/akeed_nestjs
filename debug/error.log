@@ -141,3 +141,5 @@ Error Message: Unauthorized
 Error Message: Cannot GET /api/push/subscribe,method:POST,status_code,ip:::ffff.0.0.1,user_agent:Dart/3.10
 [2026-02-06 17:30:08] local.ERROR: HTTP Error Response {"url":"http://direction-groups-steel-responding.trycloudflare.com/api/tickets/130","method":"GET","status_code":404,"ip":"::ffff:127.0.0.1","user_agent":"Dart/3.10 (dart:io)","user_id":null,"duration":"897ms","request_data":{},"response_data":{"status":false,"success":false,"code":404,"message":"Cannot GET /api/tickets/130","payload":null,"errors":null,"status_code":404}}
 Error Message: Cannot GET /api/tickets/130
+[2026-02-12 08:20:01] local.ERROR: HTTP Error Response {"url":"http://patrol-philips-board-glossary.trycloudflare.com/api/tickets?page=1&per_page=50&status=open%2Cin_progress%2Cprocessing%2Cpending_approval%2Cnew&created_by=61&reporter=61","method":"GET","status_code":401,"ip":"::ffff:127.0.0.1","user_agent":"Dart/3.10 (dart:io)","user_id":null,"duration":"12ms","request_data":{},"response_data":{"status":false,"success":false,"code":401,"message":"Unauthorized","payload":null,"errors":null,"status_code":401}}
+Error Message: Unauthorized

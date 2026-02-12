@@ -11,6 +11,7 @@ import { Attachment } from './entities/attachment.entity';
 import { Conversation } from './entities/conversation.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { MessageAction } from './entities/message-action.entity';
+import { MessageMention } from './entities/message-mention.entity';
 import { MessageReaction } from './entities/message-reaction.entity';
 import { Message } from './entities/message.entity';
 import { PollOption } from './entities/poll-option.entity';
@@ -38,6 +39,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       Conversation,
       MessageReaction,
       MessageAction,
+      MessageMention,
       Ticket,
       ActionItem,
     ]),

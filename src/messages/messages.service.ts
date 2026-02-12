@@ -23,6 +23,7 @@ import { Attachment } from './entities/attachment.entity';
 import { Conversation } from './entities/conversation.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { MessageAction } from './entities/message-action.entity';
+import { MessageMention } from './entities/message-mention.entity';
 import { MessageReaction } from './entities/message-reaction.entity';
 import { Message } from './entities/message.entity';
 import { PollOption } from './entities/poll-option.entity';
@@ -48,6 +49,8 @@ export class MessagesService {
     private reactionRepository: Repository<MessageReaction>,
     @InjectRepository(MessageAction)
     private actionRepository: Repository<MessageAction>,
+    @InjectRepository(MessageMention)
+    private messageMentionRepository: Repository<MessageMention>,
     @InjectRepository(DirectMessage)
     private directMessageRepository: Repository<DirectMessage>,
     @InjectRepository(Conversation)
@@ -525,6 +528,18 @@ export class MessagesService {
         });
       });
       await this.pollOptionRepository.save(options);
+    }
+
+    // Save Mentions to relational table
+    if (mentionedUserIds.length > 0) {
+      const mentionsToSave = mentionedUserIds.map((uid) => {
+        return this.messageMentionRepository.create({
+          messageId: savedMessage.id,
+          userId: Number(uid),
+          companyId: companyId,
+        });
+      });
+      await this.messageMentionRepository.save(mentionsToSave);
     }
 
     // Load relations

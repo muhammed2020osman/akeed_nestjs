@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Channel } from './entities/channel.entity';
 import { ChannelMember } from './entities/channel-member.entity';
+import { Channel } from './entities/channel.entity';
 
 @Injectable()
 export class ChannelsService {
@@ -26,7 +26,19 @@ export class ChannelsService {
     return channel;
   }
 
-  async getMembers(id: number): Promise<any[]> {
+  async getMembers(id: number, query?: string): Promise<any[]> {
+    if (query) {
+      return this.channelMemberRepository
+        .createQueryBuilder('cm')
+        .innerJoinAndSelect('cm.user', 'user')
+        .where('cm.channelId = :id', { id })
+        .andWhere('(user.name LIKE :query OR user.email LIKE :query)', {
+          query: `%${query}%`,
+        })
+        .getMany()
+        .then((cms) => cms.map((cm) => cm.user));
+    }
+
     const channel = await this.channelRepository.findOne({
       where: { id },
       relations: ['members'],
