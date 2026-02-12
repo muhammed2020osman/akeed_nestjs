@@ -13,6 +13,7 @@ import { ActionItemsModule } from './action-items/action-items.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { SaveApiResponsesMiddleware } from './common/middleware/save-api-responses.middleware';
 import { TicketsModule } from './tickets/tickets.module';
+import { MentionsModule } from './mentions/mentions.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { TicketsModule } from './tickets/tickets.module';
     FCMModule,
     ActionItemsModule,
     TicketsModule,
+    MentionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
