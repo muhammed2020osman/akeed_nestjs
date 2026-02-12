@@ -128,6 +128,15 @@ export class MessagesService {
       } as any);
     }
 
+    const mentionedUsers = ((message as any).mentionsRelation || [])
+      .map((mr: any) => mr?.user)
+      .filter((u: any) => !!u)
+      .map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        profile_image_url: u.profileImageUrl ?? u.profile_image_url ?? null,
+      }));
+
     return {
       ...message,
       attachmentUrl,
@@ -137,6 +146,7 @@ export class MessagesService {
         (message.replies?.length || 0) + (message.threadReplies?.length || 0),
       poll: this.transformPoll(message.poll),
       reactions: this.transformReactions(message.reactions || []),
+      mentioned_users: mentionedUsers,
       is_pinned: (message.actions || []).some(a => a.actionType === 'pin' && a.isActive),
       is_starred: currentUserId
         ? (message.actions || []).some(a => a.userId === currentUserId && a.actionType === 'favorite' && a.isActive)
@@ -275,6 +285,8 @@ export class MessagesService {
       .leftJoinAndSelect('message.channel', 'channel')
       .leftJoinAndSelect('message.replies', 'replies')
       .leftJoinAndSelect('message.threadReplies', 'threadReplies')
+      .leftJoinAndSelect('message.mentionsRelation', 'mentionsRelation')
+      .leftJoinAndSelect('mentionsRelation.user', 'mentionedUser')
       .leftJoinAndSelect('message.poll', 'poll')
       .leftJoinAndSelect('poll.options', 'options')
       .leftJoinAndSelect('options.votes', 'votes')
@@ -332,6 +344,8 @@ export class MessagesService {
         'channel',
         'replies',
         'threadReplies',
+        'mentionsRelation',
+        'mentionsRelation.user',
         'poll',
         'poll.options',
         'poll.options.votes',
