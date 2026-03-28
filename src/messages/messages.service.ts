@@ -95,7 +95,7 @@ export class MessagesService {
   }
 
   private transformMessage(message: Message, currentUserId?: number) {
-    const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || process.env.LARAVEL_APP_URL || 'https://slack.gumra-ai.com';
+    const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || process.env.LARAVEL_APP_URL || 'https://slackapi.sootnote.com';
 
     // Add domain to attachmentUrl if it's relative
     let attachmentUrl = message.attachmentUrl;

@@ -1,22 +1,22 @@
 import {
+    ForbiddenException,
+    forwardRef,
+    Inject,
     Injectable,
     NotFoundException,
-    ForbiddenException,
-    Inject,
-    forwardRef,
     Optional,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull } from 'typeorm';
-import { DirectMessage } from './entities/direct-message.entity';
-import { Conversation } from './entities/conversation.entity';
-import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
-import { MessagesGateway } from './messages.gateway';
-import { NotificationsService } from '../notifications/notifications.service';
-import { MessageReaction } from './entities/message-reaction.entity';
-import { MessageAction } from './entities/message-action.entity';
-import { Attachment } from './entities/attachment.entity';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
+import { NotificationsService } from '../notifications/notifications.service';
+import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
+import { Attachment } from './entities/attachment.entity';
+import { Conversation } from './entities/conversation.entity';
+import { DirectMessage } from './entities/direct-message.entity';
+import { MessageAction } from './entities/message-action.entity';
+import { MessageReaction } from './entities/message-reaction.entity';
+import { MessagesGateway } from './messages.gateway';
 
 @Injectable()
 export class DirectMessagesService {
@@ -39,7 +39,7 @@ export class DirectMessagesService {
     ) { }
 
     public transformDirectMessage(message: DirectMessage, currentUserId?: number) {
-        const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || process.env.LARAVEL_APP_URL || 'https://slack.gumra-ai.com';
+        const baseUrl = this.configService.get<string>('LARAVEL_APP_URL') || process.env.LARAVEL_APP_URL || 'https://slackapi.sootnote.com';
 
         // Add domain to attachmentUrl if it's relative
         let attachmentUrl = message.attachmentUrl;
